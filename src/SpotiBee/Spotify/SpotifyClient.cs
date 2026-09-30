@@ -14,7 +14,7 @@ namespace SpotiBee.Spotify
     /// Thin wrapper over the Spotify Web API. Handles access-token refresh,
     /// one retry on 401, and short Retry-After waits on 429.
     /// </summary>
-    public sealed class SpotifyClient : IDisposable
+    public sealed class SpotifyClient : ISpotifyPlaylists, IDisposable
     {
         private const string ApiBase = "https://api.spotify.com/v1/";
         private static readonly TimeSpan MaxInlineRetryWait = TimeSpan.FromSeconds(5);
@@ -103,8 +103,78 @@ namespace SpotiBee.Spotify
         public Task<PlaylistItem[]> GetPlaylistItemsAsync(string playlistId, IProgress<int> progress = null, CancellationToken ct = default) =>
             GetAllPagesAsync<PlaylistItem>($"playlists/{Uri.EscapeDataString(playlistId)}/items?limit=50", ct, progress);
 
+        public Task<Paging<SavedTrack>> GetSavedTracksPageAsync(int limit, CancellationToken ct = default) =>
+            GetAsync<Paging<SavedTrack>>($"me/tracks?limit={Math.Max(1, Math.Min(50, limit))}", ct);
+
         public Task<SavedTrack[]> GetSavedTracksAsync(IProgress<int> progress = null, CancellationToken ct = default) =>
             GetAllPagesAsync<SavedTrack>("me/tracks?limit=50", ct, progress);
+
+        public const int MaxPlaylistItemsPerRequest = 100;
+        public const int MaxLibraryItemsPerRequest = 40;
+        public const int MaxSearchResults = 10;
+
+        public async Task<Playlist> CreatePlaylistAsync(string name, string description, CancellationToken ct = default)
+        {
+            var body = await SendAsync(HttpMethod.Post, "me/playlists",
+                Json.Stringify(new CreatePlaylistRequest { Name = name, Public = false, Description = description }), ct).ConfigureAwait(false);
+            return Json.Parse<Playlist>(body);
+        }
+
+        /// <summary>Inserts up to 100 URIs at a position (or appends). Returns the new snapshot ID.</summary>
+        public async Task<string> AddPlaylistItemsAsync(string playlistId, IList<string> uris, int? position, CancellationToken ct = default)
+        {
+            var body = await SendAsync(HttpMethod.Post, $"playlists/{Uri.EscapeDataString(playlistId)}/items",
+                Json.Stringify(new PlaylistItemsRequest { Uris = uris.ToArray(), Position = position }), ct).ConfigureAwait(false);
+            return ParseSnapshot(body);
+        }
+
+        /// <summary>Removes every occurrence of up to 100 URIs. Returns the new snapshot ID.</summary>
+        public async Task<string> RemovePlaylistItemsAsync(string playlistId, IList<string> uris, CancellationToken ct = default)
+        {
+            var body = await SendAsync(HttpMethod.Delete, $"playlists/{Uri.EscapeDataString(playlistId)}/items",
+                Json.Stringify(new RemoveItemsRequest { Items = uris.Select(u => new UriRef { Uri = u }).ToArray() }), ct).ConfigureAwait(false);
+            return ParseSnapshot(body);
+        }
+
+        /// <summary>Sets the playlist to exactly these URIs, in order (any length). Returns the new snapshot ID.</summary>
+        public async Task<string> ReplacePlaylistItemsAsync(string playlistId, IList<string> uris, CancellationToken ct = default)
+        {
+            var first = uris.Take(MaxPlaylistItemsPerRequest).ToArray();
+            var body = await SendAsync(HttpMethod.Put, $"playlists/{Uri.EscapeDataString(playlistId)}/items",
+                Json.Stringify(new PlaylistItemsRequest { Uris = first }), ct).ConfigureAwait(false);
+            var snapshot = ParseSnapshot(body);
+            for (var i = MaxPlaylistItemsPerRequest; i < uris.Count; i += MaxPlaylistItemsPerRequest)
+                snapshot = await AddPlaylistItemsAsync(playlistId, uris.Skip(i).Take(MaxPlaylistItemsPerRequest).ToList(), null, ct).ConfigureAwait(false);
+            return snapshot;
+        }
+
+        public async Task<Track[]> SearchTracksAsync(string query, int limit = MaxSearchResults, CancellationToken ct = default)
+        {
+            var path = $"search?type=track&limit={Math.Min(limit, MaxSearchResults)}&market=from_token&q={Uri.EscapeDataString(query)}";
+            var result = await GetAsync<SearchResponse>(path, ct).ConfigureAwait(false);
+            return result?.Tracks?.Items?.Where(t => t != null).ToArray() ?? new Track[0];
+        }
+
+        /// <summary>Adds tracks to Liked Songs.</summary>
+        public Task SaveToLibraryAsync(IEnumerable<string> uris, CancellationToken ct = default) =>
+            LibraryAsync(HttpMethod.Put, uris, ct);
+
+        /// <summary>Removes tracks from Liked Songs.</summary>
+        public Task RemoveFromLibraryAsync(IEnumerable<string> uris, CancellationToken ct = default) =>
+            LibraryAsync(HttpMethod.Delete, uris, ct);
+
+        private async Task LibraryAsync(HttpMethod method, IEnumerable<string> uris, CancellationToken ct)
+        {
+            var list = uris.ToList();
+            for (var i = 0; i < list.Count; i += MaxLibraryItemsPerRequest)
+            {
+                var chunk = string.Join(",", list.Skip(i).Take(MaxLibraryItemsPerRequest));
+                await SendAsync(method, "me/library?uris=" + Uri.EscapeDataString(chunk), null, ct).ConfigureAwait(false);
+            }
+        }
+
+        private static string ParseSnapshot(string body) =>
+            Json.TryParse<SnapshotResponse>(body, out var s) ? s.SnapshotId : null;
 
         /// <summary>Follows "next" links until every page is fetched. Progress reports the running item count.</summary>
         private async Task<T[]> GetAllPagesAsync<T>(string firstPath, CancellationToken ct, IProgress<int> progress = null)
@@ -257,5 +327,24 @@ namespace SpotiBee.Spotify
                 return Message;
             }
         }
+    }
+}
+
+namespace SpotiBee.Spotify
+{
+    /// <summary>The playlist and library operations used by import and sync, so they can be tested offline.</summary>
+    public interface ISpotifyPlaylists : SpotiBee.Library.ISpotifySearch
+    {
+        Task<Playlist> GetPlaylistAsync(string playlistId, CancellationToken ct = default);
+        Task<Playlist[]> GetMyPlaylistsAsync(CancellationToken ct = default);
+        Task<PlaylistItem[]> GetPlaylistItemsAsync(string playlistId, IProgress<int> progress = null, CancellationToken ct = default);
+        Task<SavedTrack[]> GetSavedTracksAsync(IProgress<int> progress = null, CancellationToken ct = default);
+        Task<Paging<SavedTrack>> GetSavedTracksPageAsync(int limit, CancellationToken ct = default);
+        Task<Playlist> CreatePlaylistAsync(string name, string description, CancellationToken ct = default);
+        Task<string> AddPlaylistItemsAsync(string playlistId, IList<string> uris, int? position, CancellationToken ct = default);
+        Task<string> RemovePlaylistItemsAsync(string playlistId, IList<string> uris, CancellationToken ct = default);
+        Task<string> ReplacePlaylistItemsAsync(string playlistId, IList<string> uris, CancellationToken ct = default);
+        Task SaveToLibraryAsync(IEnumerable<string> uris, CancellationToken ct = default);
+        Task RemoveFromLibraryAsync(IEnumerable<string> uris, CancellationToken ct = default);
     }
 }

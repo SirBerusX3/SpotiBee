@@ -17,6 +17,7 @@ namespace SpotiBee.Library
         private Dictionary<string, TrackRecord> tracks = new Dictionary<string, TrackRecord>(StringComparer.Ordinal);
         private Dictionary<string, PlaylistRecord> playlists = new Dictionary<string, PlaylistRecord>(StringComparer.Ordinal);
         private Dictionary<string, TrackRecord> byPath;
+        private readonly Dictionary<string, DateTime> unmatched = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
 
         public TrackStore(string filePath)
         {
@@ -78,6 +79,36 @@ namespace SpotiBee.Library
                 playlists[record.SpotifyId] = record;
         }
 
+        public void RemovePlaylist(string spotifyPlaylistId)
+        {
+            lock (sync)
+                playlists.Remove(spotifyPlaylistId);
+        }
+
+        public PlaylistRecord FindPlaylistByMusicBeeUrl(string url)
+        {
+            lock (sync)
+                return playlists.Values.FirstOrDefault(p => string.Equals(p.MusicBeePlaylistUrl, url, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>True if this local file was searched for on Spotify recently without a match.</summary>
+        public bool WasRecentlyUnmatched(string path, TimeSpan within)
+        {
+            lock (sync)
+                return unmatched.TryGetValue(path, out var when) && DateTime.UtcNow - when < within;
+        }
+
+        public void SetUnmatched(string path, bool isUnmatched)
+        {
+            lock (sync)
+            {
+                if (isUnmatched)
+                    unmatched[path] = DateTime.UtcNow;
+                else
+                    unmatched.Remove(path);
+            }
+        }
+
         public IReadOnlyList<PlaylistRecord> Playlists
         {
             get
@@ -98,7 +129,13 @@ namespace SpotiBee.Library
         {
             StoreData data;
             lock (sync)
-                data = new StoreData { Version = 1, Tracks = tracks.Values.ToList(), Playlists = playlists.Values.ToList() };
+                data = new StoreData
+                {
+                    Version = 1,
+                    Tracks = tracks.Values.ToList(),
+                    Playlists = playlists.Values.ToList(),
+                    Unmatched = unmatched.Select(u => new UnmatchedFile { Path = u.Key, CheckedUtc = u.Value }).ToList(),
+                };
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath));
             var temp = filePath + ".tmp";
@@ -119,6 +156,9 @@ namespace SpotiBee.Library
             foreach (var p in data.Playlists ?? new List<PlaylistRecord>())
                 if (!string.IsNullOrEmpty(p.SpotifyId))
                     playlists[p.SpotifyId] = p;
+            foreach (var u in data.Unmatched ?? new List<UnmatchedFile>())
+                if (!string.IsNullOrEmpty(u.Path))
+                    unmatched[u.Path] = u.CheckedUtc;
         }
 
         [DataContract]
@@ -127,6 +167,14 @@ namespace SpotiBee.Library
             [DataMember] public int Version { get; set; }
             [DataMember] public List<TrackRecord> Tracks { get; set; }
             [DataMember] public List<PlaylistRecord> Playlists { get; set; }
+            [DataMember] public List<UnmatchedFile> Unmatched { get; set; }
+        }
+
+        [DataContract]
+        private sealed class UnmatchedFile
+        {
+            [DataMember] public string Path { get; set; }
+            [DataMember] public DateTime CheckedUtc { get; set; }
         }
     }
 
@@ -164,6 +212,19 @@ namespace SpotiBee.Library
         [DataMember] public string SnapshotId { get; set; }
         [DataMember] public string MusicBeePlaylistUrl { get; set; }
         [DataMember] public DateTime LastImportedUtc { get; set; }
+
+        /// <summary>Spotify track IDs in order, as of the last sync: the common ancestor for two-way merges.</summary>
         [DataMember] public List<string> TrackIds { get; set; }
+
+        [DataMember] public string MusicBeeName { get; set; }
+        [DataMember] public DateTime LastSyncedUtc { get; set; }
+
+        /// <summary>"Artist – Title" of MusicBee tracks Spotify doesn't have, as of the last sync.</summary>
+        [DataMember] public List<string> Unmatched { get; set; }
+
+        /// <summary>The Spotify playlist has episodes or Spotify local files, which sync must leave in place.</summary>
+        [DataMember] public bool HasUnsyncableItems { get; set; }
+
+        public bool IsLikedSongs => SpotifyId == LikedSongsId;
     }
 }

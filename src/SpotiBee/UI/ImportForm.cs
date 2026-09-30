@@ -15,6 +15,7 @@ namespace SpotiBee.UI
     {
         private readonly SpotiBeeController controller;
         private readonly IMusicBeeLibrary musicBee;
+        private readonly SyncScheduler scheduler;
 
         private readonly ListView list = new ListView
         {
@@ -39,10 +40,11 @@ namespace SpotiBee.UI
             public string Reason;
         }
 
-        public ImportForm(SpotiBeeController controller, IMusicBeeLibrary musicBee)
+        public ImportForm(SpotiBeeController controller, IMusicBeeLibrary musicBee, SyncScheduler scheduler = null)
         {
             this.controller = controller;
             this.musicBee = musicBee;
+            this.scheduler = scheduler;
 
             Text = "Import Spotify Playlists";
             StartPosition = FormStartPosition.CenterParent;
@@ -155,7 +157,9 @@ namespace SpotiBee.UI
                 row.Source.Name,
                 tracks,
                 owner,
-                row.Reason ?? (previous != null ? "Imported " + previous.LastImportedUtc.ToLocalTime().ToString("g") : ""),
+                row.Reason ?? (previous == null ? "" :
+                    "Linked, last synced " + (previous.LastSyncedUtc > previous.LastImportedUtc ? previous.LastSyncedUtc : previous.LastImportedUtc)
+                        .ToLocalTime().ToString("g")),
             })
             {
                 Tag = row,
@@ -220,6 +224,14 @@ namespace SpotiBee.UI
                     progressBar.Value = 0;
                     try
                     {
+                        // Already linked: sync instead, so MusicBee-side changes aren't overwritten
+                        var link = controller.Store.GetPlaylist(row.Source.Id);
+                        if (link != null && scheduler != null && musicBee.PlaylistExists(link.MusicBeePlaylistUrl))
+                        {
+                            var outcome = await scheduler.SyncOneAsync(link, progress, running.Token);
+                            item.SubItems[3].Text = "Synced: " + outcome.Summary;
+                            continue;
+                        }
                         var result = await importer.ImportAsync(row.Source, progress, running.Token);
                         results.Add(result);
                         item.SubItems[3].Text = "Imported: " + result.Summary;

@@ -22,6 +22,8 @@ namespace MusicBeePlugin
         private PlaybackRouter router;
         private IMusicBeePlayer player;
         private System.Windows.Forms.Timer syncTimer;
+        private SyncScheduler playlistSync;
+        private MusicBeeLibrary library;
         private Control uiThread;
         private SynchronizationContext uiContext;
         private SkinColours skin;
@@ -79,6 +81,8 @@ namespace MusicBeePlugin
         {
             Diagnostics.Log("Close: " + reason);
             syncTimer?.Dispose();
+            playlistSync?.Dispose();
+            playlistSync = null;
             syncTimer = null;
             router?.Shutdown();
             controller?.Dispose();
@@ -115,6 +119,11 @@ namespace MusicBeePlugin
                 case NotificationType.VolumeLevelChanged:
                     OnUi(router.OnVolumeChanged);
                     break;
+                case NotificationType.PlaylistUpdated:
+                case NotificationType.PlaylistDeleted:
+                case NotificationType.PlaylistMoved:
+                    OnUi(() => playlistSync?.OnMusicBeePlaylistChanged(sourceFileUrl));
+                    break;
                 case NotificationType.VolumeMuteChanged:
                     OnUi(router.OnMuteChanged);
                     break;
@@ -138,6 +147,11 @@ namespace MusicBeePlugin
                 syncTimer = new System.Windows.Forms.Timer { Interval = 500 };
                 syncTimer.Tick += (s, e) => router.Tick();
                 syncTimer.Start();
+
+                // Timers must be created on the UI thread, so the playlist scheduler starts here too
+                library = new MusicBeeLibrary(mbApiInterface);
+                playlistSync = new SyncScheduler(controller, library);
+                playlistSync.Start();
 
                 // MusicBee may already be playing (e.g. resumed on startup)
                 var state = player.PlayState;
@@ -239,6 +253,8 @@ namespace MusicBeePlugin
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(controller.IsConnected ? "Settings / Disconnect…" : "Connect to Spotify…", null, (s, e) => ShowSettings()),
                 new ToolStripMenuItem("Import Spotify playlists…", null, (s, e) => ShowImport()) { Enabled = controller.IsConnected },
+                new ToolStripMenuItem("Send playlists to Spotify…", null, (s, e) => ShowSendToSpotify()) { Enabled = controller.IsConnected },
+                new ToolStripMenuItem("Sync playlists now", null, (s, e) => SyncNow()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Open Spotify", null, (s, e) => controller.OpenSpotifyApp()),
             };
         }
@@ -251,6 +267,8 @@ namespace MusicBeePlugin
 
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee Settings…", null, (s, e) => ShowSettings());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Import Spotify Playlists…", null, (s, e) => ShowImport());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Send Playlists to Spotify…", null, (s, e) => ShowSendToSpotify());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Sync Playlists Now", "SpotiBee: Sync Playlists Now", (s, e) => SyncNow());
 
             // A hotkey description makes the command assignable in Preferences > Hotkeys
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Play or Pause", "SpotiBee: Play/Pause", async (s, e) => await controller.PlayPauseAsync());
@@ -306,8 +324,39 @@ namespace MusicBeePlugin
                 ShowSettings();
                 return;
             }
-            using var form = new ImportForm(controller, new MusicBeeLibrary(mbApiInterface));
+            using var form = new ImportForm(controller, library ?? new MusicBeeLibrary(mbApiInterface), playlistSync);
             form.ShowDialog(MainWindow);
+        }
+
+        private void ShowSendToSpotify()
+        {
+            if (!controller.IsConnected || playlistSync == null)
+            {
+                ShowSettings();
+                return;
+            }
+            using var form = new SendToSpotifyForm(controller, library, playlistSync);
+            form.ShowDialog(MainWindow);
+        }
+
+        private async void SyncNow()
+        {
+            if (playlistSync == null || !controller.IsConnected)
+            {
+                controller.ShowStatus("Connect to Spotify to sync playlists.");
+                return;
+            }
+            if (controller.Store.Playlists.Count == 0)
+            {
+                controller.ShowStatus("No playlists are linked yet. Import from Spotify or send one to Spotify first.");
+                return;
+            }
+            controller.ShowStatus("Syncing playlists…");
+            var outcomes = await playlistSync.SyncAllAsync();
+            if (outcomes == null)
+                controller.ShowStatus("A playlist sync is already running.");
+            else if (!outcomes.Any(o => o.Changed || o.Unlinked))
+                controller.ShowStatus($"Playlists are up to date ({outcomes.Count} linked).");
         }
 
         private IWin32Window MainWindow => Control.FromHandle(mbApiInterface.MB_GetWindowHandle());

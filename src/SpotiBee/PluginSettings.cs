@@ -31,6 +31,9 @@ namespace SpotiBee
         /// <summary>A Playback.PlaybackMode value; 0 (Local first) by default.</summary>
         [DataMember] public int PlaybackMode { get; set; }
 
+        /// <summary>Linked playlists sync automatically unless this is set.</summary>
+        [DataMember] public bool DisableAutoSync { get; set; }
+
         // Mute SpotiBee applied to MusicBee's player, persisted so it can be undone after a crash
         [DataMember] public bool MuteAppliedBySpotiBee { get; set; }
 

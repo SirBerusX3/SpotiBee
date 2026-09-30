@@ -21,6 +21,7 @@ namespace SpotiBee.UI
         private readonly Button close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel };
         private readonly TextBox placeholderFolder = new TextBox();
         private readonly Button browse = new Button { Text = "Browse…", AutoSize = true };
+        private readonly CheckBox autoSync = new CheckBox { Text = "Keep linked playlists in sync with Spotify automatically", AutoSize = true };
         private readonly ToolTip tips = new ToolTip();
         private CancellationTokenSource loginCancel;
 
@@ -99,9 +100,18 @@ namespace SpotiBee.UI
             };
             layout.Controls.Add(browse, 2, 4);
 
+            autoSync.Checked = !controller.Settings.DisableAutoSync;
+            autoSync.Margin = new Padding(0, 8, 0, 0);
+            tips.SetToolTip(autoSync,
+                "Changes to linked playlists in MusicBee are sent to Spotify a few seconds later,\n" +
+                "and changes made in Spotify are picked up every few minutes.\n" +
+                "Tools > SpotiBee: Sync Playlists Now works either way.");
+            layout.Controls.Add(autoSync, 0, 5);
+            layout.SetColumnSpan(autoSync, 3);
+
             var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Dock = DockStyle.Fill };
             buttons.Controls.Add(close);
-            layout.Controls.Add(buttons, 0, 5);
+            layout.Controls.Add(buttons, 0, 6);
             layout.SetColumnSpan(buttons, 3);
 
             Controls.Add(layout);
@@ -199,9 +209,11 @@ namespace SpotiBee.UI
             var chosen = string.Equals(folder, PluginSettings.DefaultPlaceholderFolder, StringComparison.OrdinalIgnoreCase) || folder.Length == 0
                 ? null
                 : folder;
-            if (chosen != controller.Settings.PlaceholderFolder)
+            var disableAutoSync = !autoSync.Checked;
+            if (chosen != controller.Settings.PlaceholderFolder || disableAutoSync != controller.Settings.DisableAutoSync)
             {
                 controller.Settings.PlaceholderFolder = chosen;
+                controller.Settings.DisableAutoSync = disableAutoSync;
                 try { controller.Settings.Save(); }
                 catch (Exception ex) { MessageBox.Show(this, "Couldn't save settings: " + ex.Message, "SpotiBee"); }
             }

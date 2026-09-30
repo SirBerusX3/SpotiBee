@@ -209,7 +209,46 @@ namespace SpotiBee.Spotify
         [DataMember(Name = "track")] public Track Track { get; set; }
     }
 
+    [DataContract]
+    public class SnapshotResponse
+    {
+        [DataMember(Name = "snapshot_id")] public string SnapshotId { get; set; }
+    }
+
+    [DataContract]
+    public class SearchResponse
+    {
+        [DataMember(Name = "tracks")] public Paging<Track> Tracks { get; set; }
+    }
+
     // Request bodies
+
+    [DataContract]
+    public class CreatePlaylistRequest
+    {
+        [DataMember(Name = "name")] public string Name { get; set; }
+        [DataMember(Name = "public")] public bool Public { get; set; }
+        [DataMember(Name = "description", EmitDefaultValue = false)] public string Description { get; set; }
+    }
+
+    [DataContract]
+    public class PlaylistItemsRequest
+    {
+        [DataMember(Name = "uris")] public string[] Uris { get; set; }
+        [DataMember(Name = "position", EmitDefaultValue = false)] public int? Position { get; set; }
+    }
+
+    [DataContract]
+    public class RemoveItemsRequest
+    {
+        [DataMember(Name = "items")] public UriRef[] Items { get; set; }
+    }
+
+    [DataContract]
+    public class UriRef
+    {
+        [DataMember(Name = "uri")] public string Uri { get; set; }
+    }
 
     [DataContract]
     public class PlayRequest

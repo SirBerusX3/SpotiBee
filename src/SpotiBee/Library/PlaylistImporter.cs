@@ -58,6 +58,18 @@ namespace SpotiBee.Library
         public int Total { get; }
     }
 
+    /// <summary>Spotify tracks turned into MusicBee files, in playlist order.</summary>
+    public sealed class Materialized
+    {
+        /// <summary>Spotify track IDs in order (real catalogue tracks only).</summary>
+        public List<string> TrackIds { get; } = new List<string>();
+
+        /// <summary>MusicBee files in order, including Spotify "local files" found in the library.</summary>
+        public List<string> Files { get; } = new List<string>();
+
+        public Dictionary<string, string> FileById { get; } = new Dictionary<string, string>(StringComparer.Ordinal);
+    }
+
     /// <summary>
     /// Turns a Spotify playlist into a MusicBee playlist in the "Spotify" folder. Tracks the user
     /// owns locally use the local file; everything else gets a silent placeholder added to the library.
@@ -68,13 +80,13 @@ namespace SpotiBee.Library
         public const string PlaylistFolder = "Spotify";
         private const int ParallelPlaceholderWrites = 4;
 
-        private readonly SpotifyClient spotify;
+        private readonly ISpotifyPlaylists spotify;
         private readonly IMusicBeeLibrary musicBee;
         private readonly TrackStore store;
         private readonly PlaceholderWriter placeholders;
         private LocalMatcher matcher;
 
-        public PlaylistImporter(SpotifyClient spotify, IMusicBeeLibrary musicBee, TrackStore store, PlaceholderWriter placeholders)
+        public PlaylistImporter(ISpotifyPlaylists spotify, IMusicBeeLibrary musicBee, TrackStore store, PlaceholderWriter placeholders)
         {
             this.spotify = spotify;
             this.musicBee = musicBee;
@@ -89,12 +101,58 @@ namespace SpotiBee.Library
         {
             var result = new ImportResult { Name = source.Name };
 
+            // Read the version first: if the playlist changes mid-import, the next sync notices
+            var snapshot = source.IsLikedSongs ? null : await TryGetSnapshotAsync(source.Id, ct);
+            var entries = await FetchAsync(source, progress, ct);
+            var materialized = await MaterializeAsync(entries, result, progress, ct);
+            result.Tracks = materialized.Files.Count;
+
+            progress?.Report(new ImportProgress("Updating the MusicBee playlist…"));
+            var name = PlaceholderWriter.SafeName(source.Name);
+            var existing = store.GetPlaylist(source.Id);
+            var playlistUrl = existing?.MusicBeePlaylistUrl;
+            if (!musicBee.PlaylistExists(playlistUrl))
+                playlistUrl = musicBee.FindPlaylist(PlaylistFolder, name);
+            if (playlistUrl == null)
+                playlistUrl = musicBee.CreatePlaylist(PlaylistFolder, name, materialized.Files.ToArray());
+            else
+                musicBee.SetPlaylistFiles(playlistUrl, materialized.Files.ToArray());
+
+            store.SetPlaylist(new PlaylistRecord
+            {
+                SpotifyId = source.Id,
+                Name = source.Name,
+                MusicBeeName = musicBee.GetPlaylistName(playlistUrl) ?? name,
+                MusicBeePlaylistUrl = playlistUrl,
+                LastImportedUtc = DateTime.UtcNow,
+                LastSyncedUtc = DateTime.UtcNow,
+                TrackIds = materialized.TrackIds,
+                SnapshotId = snapshot,
+                Unmatched = new List<string>(),
+            });
+            store.Save();
+
+            progress?.Report(new ImportProgress($"Imported \"{source.Name}\": {result.Summary}"));
+            return result;
+        }
+
+        public async Task<List<(Track Track, bool IsLocal)>> FetchAsync(ImportSource source, IProgress<ImportProgress> progress, CancellationToken ct)
+        {
             progress?.Report(new ImportProgress($"Reading \"{source.Name}\" from Spotify…"));
             var fetchProgress = new Progress<int>(n => progress?.Report(new ImportProgress($"Reading \"{source.Name}\" from Spotify… {n} tracks")));
-            var entries = source.IsLikedSongs
-                ? (await spotify.GetSavedTracksAsync(fetchProgress, ct)).Select(s => (Track: s.Track, IsLocal: false)).ToList()
+            return source.IsLikedSongs
+                ? (await spotify.GetSavedTracksAsync(fetchProgress, ct)).Select(s => (s.Track, false)).ToList()
                 : (await spotify.GetPlaylistItemsAsync(source.Id, fetchProgress, ct)).Select(i => (i.Track, i.IsLocal)).ToList();
+        }
 
+        /// <summary>
+        /// Resolves Spotify entries to MusicBee files: the user's own copy when there is one,
+        /// otherwise a placeholder (created and added to the library if missing).
+        /// </summary>
+        public async Task<Materialized> MaterializeAsync(IList<(Track Track, bool IsLocal)> entries, ImportResult result,
+            IProgress<ImportProgress> progress, CancellationToken ct)
+        {
+            result ??= new ImportResult();
             if (matcher == null)
             {
                 progress?.Report(new ImportProgress("Scanning your MusicBee library for local copies…"));
@@ -140,7 +198,7 @@ namespace SpotiBee.Library
                 UpdateMetadata(record, track);
 
                 if (!record.LocalPathPinned)
-                    record.LocalPath = matcher.Match(track)?.Path;
+                    record.LocalPath = matcher.Match(track)?.Path ?? KeepIfStillPresent(record.LocalPath);
                 if (!string.IsNullOrEmpty(record.LocalPath) && !File.Exists(record.LocalPath))
                     record.LocalPath = null;
 
@@ -187,37 +245,24 @@ namespace SpotiBee.Library
             }
             store.InvalidatePathIndex();
 
-            // Pass 3: write the MusicBee playlist in Spotify's order
-            var files = ordered.Select(o => o.Record.PreferredPath).ToList();
-            foreach (var (index, path) in looseLocalFiles)
-                files.Insert(Math.Min(index, files.Count), path);
-            result.Tracks = files.Count;
-
-            progress?.Report(new ImportProgress("Updating the MusicBee playlist…"));
-            var name = PlaceholderWriter.SafeName(source.Name);
-            var existing = store.GetPlaylist(source.Id);
-            var playlistUrl = existing?.MusicBeePlaylistUrl;
-            if (!musicBee.PlaylistExists(playlistUrl))
-                playlistUrl = musicBee.FindPlaylist(PlaylistFolder, name);
-            if (playlistUrl == null)
-                playlistUrl = musicBee.CreatePlaylist(PlaylistFolder, name, files.ToArray());
-            else
-                musicBee.SetPlaylistFiles(playlistUrl, files.ToArray());
-
-            store.SetPlaylist(new PlaylistRecord
+            var materialized = new Materialized();
+            foreach (var (record, _) in ordered)
             {
-                SpotifyId = source.Id,
-                Name = source.Name,
-                MusicBeePlaylistUrl = playlistUrl,
-                LastImportedUtc = DateTime.UtcNow,
-                TrackIds = ordered.Select(o => o.Record.SpotifyId).ToList(),
-                SnapshotId = source.IsLikedSongs ? null : (await TryGetSnapshotAsync(source.Id, ct)),
-            });
-            store.Save();
-
-            progress?.Report(new ImportProgress($"Imported \"{source.Name}\": {result.Summary}"));
-            return result;
+                materialized.TrackIds.Add(record.SpotifyId);
+                materialized.Files.Add(record.PreferredPath);
+                materialized.FileById[record.SpotifyId] = record.PreferredPath;
+            }
+            foreach (var (index, path) in looseLocalFiles)
+                materialized.Files.Insert(Math.Min(index, materialized.Files.Count), path);
+            return materialized;
         }
+
+        /// <summary>
+        /// A local file paired by searching Spotify (see TrackResolver) may not match the name-based
+        /// library scan; keep that pairing rather than dropping it.
+        /// </summary>
+        private static string KeepIfStillPresent(string path) =>
+            !string.IsNullOrEmpty(path) && File.Exists(path) ? path : null;
 
         private async Task<string> TryGetSnapshotAsync(string playlistId, CancellationToken ct)
         {
@@ -231,7 +276,7 @@ namespace SpotiBee.Library
             }
         }
 
-        private static void UpdateMetadata(TrackRecord record, Track track)
+        internal static void UpdateMetadata(TrackRecord record, Track track)
         {
             record.Uri = track.Uri;
             record.Title = track.Name;

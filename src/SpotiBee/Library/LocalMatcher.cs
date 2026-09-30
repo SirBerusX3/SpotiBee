@@ -80,6 +80,22 @@ namespace SpotiBee.Library
                 .FirstOrDefault();
         }
 
+        /// <summary>A title with "feat." and remaster suffixes removed, still readable, for use in search queries.</summary>
+        public static string CleanTitle(string title)
+        {
+            if (string.IsNullOrWhiteSpace(title))
+                return "";
+            return Remaster.Replace(Featuring.Replace(title, ""), "").Trim();
+        }
+
+        /// <summary>The first artist of a MusicBee artist tag ("A; B", "A feat. B"), still readable.</summary>
+        public static string FirstArtist(string artist)
+        {
+            if (string.IsNullOrWhiteSpace(artist))
+                return "";
+            return ArtistSeparators.Split(artist.Split('\0')[0])[0].Trim();
+        }
+
         internal static string NormalizeTitle(string title)
         {
             if (string.IsNullOrWhiteSpace(title))

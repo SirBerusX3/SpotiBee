@@ -2,15 +2,16 @@
 
 A MusicBee plugin that bridges MusicBee and Spotify.
 
-**Status: phase 3**: Spotify login, now-playing panel, controls, playlist import, and
-playing Spotify tracks from MusicBee's queue.
+**Status: phase 5a**: Spotify login, now-playing panel, controls, playlist import, playing
+Spotify tracks from MusicBee's queue, and two-way playlist sync including sending MusicBee
+playlists to Spotify.
 
 Planned:
 1. ~~Connect + now playing + controls~~
 2. ~~Import Spotify playlists into MusicBee as placeholder tracks~~
 3. ~~Play placeholder tracks through Spotify, kept in sync with MusicBee's player~~
 4. Lyrics for Spotify tracks via MusicBee's lyrics system
-5. Two-way playlist sync, search, "add to playlist" from the panel
+5. ~~Two-way playlist sync, send MusicBee playlists to Spotify~~; next: search and add from the panel, library tidy-up
 
 Audio always plays through a Spotify client (desktop app, web player, phone or speaker).
 SpotiBee is a remote control; it never streams Spotify audio itself.
@@ -72,6 +73,35 @@ Spotify limits (Development Mode apps, since February 2026):
   playlist, copy its songs into a playlist of your own in Spotify first.
 - Liked Songs can be imported.
 - Podcast episodes and Spotify "local files" without a match in your library are skipped.
+
+## Two-way playlist sync
+
+Every imported playlist, and every playlist you send to Spotify, stays **linked**:
+
+- Changes in MusicBee (add, remove, reorder) reach Spotify a few seconds later.
+- Changes made in Spotify, on any device, are picked up within about 3 minutes.
+- **Tools → SpotiBee: Sync Playlists Now** (also a hotkey) syncs immediately.
+- If both sides changed since the last sync, the changes are merged. Removals from either side
+  apply, and additions from both sides are kept.
+- Spotify keeps each song's "date added": SpotiBee adds and removes individual tracks instead
+  of rewriting the whole playlist, except when you reorder.
+- Liked Songs syncs too. Adding to or removing from the MusicBee copy likes or unlikes the
+  song on Spotify.
+- Turn automatic sync off in settings if you only want to sync on demand.
+
+### Sending MusicBee playlists to Spotify
+
+**Tools → SpotiBee: Send Playlists to Spotify…** creates a private Spotify playlist from each
+ticked MusicBee playlist, including ones made entirely from your own files. Each local file is
+looked up in Spotify's catalogue by title and artist, and the length must agree within
+4 seconds. That lets you listen to your local playlists on devices that don't have the files.
+
+- Tracks Spotify doesn't have (bootlegs, rare releases, different edits) stay in the MusicBee
+  playlist only, in their original place, and are listed at the end.
+- Files Spotify didn't have aren't searched again for a week.
+- **Auto-playlists** sync one way only (MusicBee → Spotify), since their contents come from a
+  filter.
+- Deleting the MusicBee playlist unlinks it but leaves the Spotify playlist alone, and vice versa.
 
 ## Playing Spotify tracks from MusicBee
 
