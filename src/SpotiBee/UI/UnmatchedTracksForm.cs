@@ -135,7 +135,7 @@ namespace SpotiBee.UI
                 ? Path.GetFileNameWithoutExtension(row.File)
                 : $"{LocalMatcher.SearchArtist(row.Track.Artist)} {LocalMatcher.TitleVariants(row.Track.Title).LastOrDefault() ?? row.Track.Title}".Trim();
             using var picker = new SpotifyPickerForm(controller.Client, "Choose the Spotify track for " + list.SelectedItems[0].Text,
-                query, row.Track?.Duration);
+                query, row.Track);
             if (picker.ShowDialog(this) != DialogResult.OK || picker.Selected == null)
                 return;
 

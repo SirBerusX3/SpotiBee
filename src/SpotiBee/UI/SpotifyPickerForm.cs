@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
@@ -11,7 +12,9 @@ namespace SpotiBee.UI
     public sealed class SpotifyPickerForm : Form
     {
         private readonly ISpotifySearch spotify;
+        private readonly LocalTrack local;
         private readonly TimeSpan? localLength;
+        private readonly HashSet<string> titleKeys;
 
         private readonly TextBox query = new TextBox { Dock = DockStyle.Fill };
         private readonly Button search = new Button { Text = "Search", AutoSize = true };
@@ -28,10 +31,13 @@ namespace SpotiBee.UI
         private readonly Button choose = new Button { Text = "Use this track", AutoSize = true, Enabled = false };
         private readonly Button cancel = new Button { Text = "Cancel", AutoSize = true, DialogResult = DialogResult.Cancel };
 
-        public SpotifyPickerForm(ISpotifySearch spotify, string title, string initialQuery, TimeSpan? localLength)
+        /// <param name="local">The file being matched, if any: results are compared against its title, artist and length.</param>
+        public SpotifyPickerForm(ISpotifySearch spotify, string title, string initialQuery, LocalTrack local)
         {
             this.spotify = spotify;
-            this.localLength = localLength;
+            this.local = local;
+            localLength = local?.Duration;
+            titleKeys = new HashSet<string>((local == null ? new string[0] : LocalMatcher.TitleVariants(local.Title)).Select(LocalMatcher.NormalizeTitle));
 
             Text = title;
             StartPosition = FormStartPosition.CenterParent;
@@ -105,17 +111,23 @@ namespace SpotiBee.UI
                         diff == null ? "" : Math.Abs(diff.Value.TotalSeconds) < 1 ? "same" : (diff.Value < TimeSpan.Zero ? "−" : "+") + Format(diff.Value.Duration()),
                     })
                     { Tag = t };
-                    if (diff.HasValue && diff.Value.Duration() <= TrackResolver.ExactLength)
+                    // Only the same song counts: search results often include unrelated tracks
+                    // that happen to be a similar length
+                    if (IsSameSong(t) && diff.HasValue && diff.Value.Duration() <= TrackResolver.ExactLength)
                         item.Font = new Font(results.Font, FontStyle.Bold);
+                    if (!IsSameSong(t))
+                        item.ForeColor = SystemColors.GrayText;
                     results.Items.Add(item);
                 }
                 results.EndUpdate();
-                // Keep Spotify's relevance order, but start on the closest length to the user's file
+                // Keep Spotify's relevance order, but start on the same song with the closest length;
+                // if nothing looks like the same song, start on Spotify's top result
                 var best = results.Items.Cast<ListViewItem>()
-                    .OrderBy(i => localLength.HasValue
-                        ? Math.Abs(((Track)i.Tag).DurationMs - localLength.Value.TotalMilliseconds)
+                    .Where(i => IsSameSong((Track)i.Tag))
+                    .OrderBy(i => local?.Duration is TimeSpan length
+                        ? Math.Abs(((Track)i.Tag).DurationMs - length.TotalMilliseconds)
                         : i.Index)
-                    .FirstOrDefault();
+                    .FirstOrDefault() ?? results.Items.Cast<ListViewItem>().FirstOrDefault();
                 if (best != null)
                 {
                     best.Selected = true;
@@ -123,7 +135,8 @@ namespace SpotiBee.UI
                 }
                 status.Text = results.Items.Count == 0
                     ? "No results. Try fewer words, or just the song title."
-                    : $"{results.Items.Count} results (Spotify returns at most {SpotifyClient.MaxSearchResults}). Bold ones are the same length as your file.";
+                    : $"{results.Items.Count} results (Spotify returns at most {SpotifyClient.MaxSearchResults}). " +
+                      (local == null ? "" : "Other songs are greyed out; bold ones are also the same length as your file.");
             }
             catch (Exception ex)
             {
@@ -140,6 +153,15 @@ namespace SpotiBee.UI
             Selected = (Track)results.SelectedItems[0].Tag;
             DialogResult = DialogResult.OK;
             Close();
+        }
+
+        /// <summary>Same title (ignoring release labels) and artist as the local file; true when there's no local file to compare.</summary>
+        private bool IsSameSong(Track t)
+        {
+            if (local == null)
+                return true;
+            return titleKeys.Contains(LocalMatcher.NormalizeTitle(t.Name)) &&
+                   LocalMatcher.ArtistsMatch(new[] { local.Artist, local.AlbumArtist }, (t.Artists ?? new Artist[0]).Select(a => a.Name));
         }
 
         private static string Format(TimeSpan t) => t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");

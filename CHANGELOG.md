@@ -22,8 +22,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   Spotify.
 - **Sync Playlists Now** command (Tools menu, panel header menu, assignable hotkey).
 - **Tracks Not Found on Spotify** window: pick the Spotify version of a local track by hand from
-  a search. Results show how each length compares to your file, and the closest is
-  preselected. Hand-picked matches are added to every synced playlist containing the file, and
+  a search. Other songs in the results are greyed out; of the same song, the closest length to
+  your file is preselected. Hand-picked matches are added to every synced playlist containing the file, and
   automatic matching never overrides them.
 - Setting to turn automatic sync off.
 

@@ -110,7 +110,8 @@ looked up in Spotify's catalogue by title and artist, and the length must agree 
   update.
 - **Match by hand:** Tools → SpotiBee: Tracks Not Found on Spotify… (or *Match missing tracks…*
   in the Send window) lists the misses. Choose one to search Spotify, with results showing how
-  each length compares to your file; the closest is preselected. Your choice is added to every
+  each length compares to your file. Other songs are greyed out, and the closest-length version
+  of the same song is preselected. Your choice is added to every
   synced playlist containing that file, and automatic matching never overrides it.
 - **Auto-playlists** sync one way only (MusicBee → Spotify), since their contents come from a
   filter.
