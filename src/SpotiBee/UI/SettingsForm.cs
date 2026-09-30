@@ -112,9 +112,9 @@ namespace SpotiBee.UI
                 var user = controller.User;
                 accountStatus.Text = user == null
                     ? "Connected to Spotify."
-                    : $"Connected as {user.DisplayName ?? user.Id}" + (user.IsPremium
-                        ? " (Premium)."
-                        : ". This account isn't Premium, so Spotify won't allow playback control.");
+                    : $"Connected as {user.DisplayName ?? user.Id}" + (user.IsPremium == false
+                        ? ". This account isn't Premium, so Spotify won't allow playback control."
+                        : ".");
             }
             else
             {

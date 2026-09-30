@@ -41,9 +41,10 @@ namespace SpotiBee.Spotify
     {
         [DataMember(Name = "id")] public string Id { get; set; }
         [DataMember(Name = "display_name")] public string DisplayName { get; set; }
+        // Spotify stopped returning this to Development Mode apps in Feb 2026; null means unknown
         [DataMember(Name = "product")] public string Product { get; set; }
 
-        public bool IsPremium => Product == "premium";
+        public bool? IsPremium => Product == null ? (bool?)null : Product == "premium";
     }
 
     [DataContract]

@@ -228,7 +228,7 @@ namespace SpotiBee
             {
                 User = await c.GetCurrentUserAsync();
                 ConnectionChanged?.Invoke();
-                if (User != null && !User.IsPremium)
+                if (User?.IsPremium == false)
                     StatusMessage?.Invoke("This account isn't Premium. Spotify only allows playback control for Premium accounts.");
             }
             catch (Exception ex)
