@@ -21,6 +21,7 @@ namespace SpotiBee.UI
         private readonly SpotiBeeController controller;
         private readonly SkinColours skin;
         private readonly Action openSettings;
+        private readonly Action openSearch;
         private readonly float scale;
         private readonly bool hasIconFont;
 
@@ -35,6 +36,7 @@ namespace SpotiBee.UI
         private readonly ComboBox devices = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
         private readonly Label status = new Label { AutoEllipsis = true };
         private readonly Label source = new Label { TextAlign = ContentAlignment.MiddleCenter, AutoEllipsis = true };
+        private readonly Button searchButton = new Button { FlatStyle = FlatStyle.Flat, TabStop = false, Cursor = Cursors.Hand, UseMnemonic = false };
         private readonly Button mode = new Button { FlatStyle = FlatStyle.Flat, TabStop = false, Cursor = Cursors.Hand, UseMnemonic = false };
         private readonly Panel disconnected = new Panel();
         private readonly Label disconnectedText = new Label { TextAlign = ContentAlignment.MiddleCenter };
@@ -48,11 +50,12 @@ namespace SpotiBee.UI
         private bool updatingDevices;
         private bool initialised;
 
-        public NowPlayingPanel(SpotiBeeController controller, SkinColours skin, Action openSettings)
+        public NowPlayingPanel(SpotiBeeController controller, SkinColours skin, Action openSettings, Action openSearch = null)
         {
             this.controller = controller;
             this.skin = skin;
             this.openSettings = openSettings;
+            this.openSearch = openSearch;
             lock (Live)
                 Live.Add(new WeakReference<NowPlayingPanel>(this));
             Diagnostics.Log($"Panel #{id} constructing");
@@ -108,6 +111,16 @@ namespace SpotiBee.UI
             if (controller.Router != null)
                 controller.Router.StateChanged += OnRouterStateChanged;
 
+            searchButton.Font = hasIconFont ? new Font(IconFontName, 9.5f) : elapsed.Font;
+            searchButton.Text = hasIconFont ? "" : "Find";
+            searchButton.ForeColor = skin.Foreground;
+            searchButton.BackColor = skin.Background;
+            searchButton.FlatAppearance.BorderColor = skin.Track;
+            searchButton.FlatAppearance.MouseOverBackColor = skin.Track;
+            searchButton.Visible = openSearch != null;
+            searchButton.Click += (s, e) => openSearch?.Invoke();
+            tips.SetToolTip(searchButton, "Search Spotify: play, queue or add tracks to a playlist");
+
             title.Click += (s, e) => OpenInSpotify(snapshot?.State?.Item?.Uri);
             seekBar.SeekRequested += fraction =>
             {
@@ -133,7 +146,7 @@ namespace SpotiBee.UI
             Controls.AddRange(new Control[]
             {
                 disconnected, artwork, title, artist, album, seekBar, elapsed, duration,
-                shuffle, previous, playPause, next, repeat, devices, mode, source, status,
+                shuffle, previous, playPause, next, repeat, searchButton, devices, mode, source, status,
             });
 
             ticker.Tick += (s, e) => UpdateProgress();
@@ -209,7 +222,9 @@ namespace SpotiBee.UI
 
             var modeWidth = S(92);
             var comboTop = rowTop + large + S(6);
-            devices.Bounds = new Rectangle(pad, comboTop, Math.Max(0, width - pad * 3 - modeWidth), devices.Height);
+            var searchWidth = devices.Height;
+            searchButton.Bounds = new Rectangle(pad, comboTop, searchWidth, devices.Height);
+            devices.Bounds = new Rectangle(searchButton.Right + S(4), comboTop, Math.Max(0, width - pad * 3 - modeWidth - searchWidth - S(4)), devices.Height);
             mode.Bounds = new Rectangle(devices.Right + pad, comboTop, modeWidth, devices.Height);
             status.Bounds = new Rectangle(pad, devices.Bottom + S(4), Math.Max(0, width - pad * 2), S(16));
         }

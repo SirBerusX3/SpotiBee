@@ -2,16 +2,16 @@
 
 A MusicBee plugin that bridges MusicBee and Spotify.
 
-**Status: phase 5a**: Spotify login, now-playing panel, controls, playlist import, playing
+**Status: roadmap complete**: Spotify login, now-playing panel, controls, playlist import, playing
 Spotify tracks from MusicBee's queue, and two-way playlist sync including sending MusicBee
-playlists to Spotify.
+playlists to Spotify, Spotify search, and library tidy-up.
 
 Planned:
 1. ~~Connect + now playing + controls~~
 2. ~~Import Spotify playlists into MusicBee as placeholder tracks~~
 3. ~~Play placeholder tracks through Spotify, kept in sync with MusicBee's player~~
 4. ~~Lyrics for Spotify tracks via MusicBee's lyrics system~~ (works automatically: placeholders are real library files)
-5. ~~Two-way playlist sync, send MusicBee playlists to Spotify~~; next: search and add from the panel, library tidy-up
+5. ~~Two-way playlist sync, sending playlists to Spotify, search and add, library tidy-up~~
 
 Audio always plays through a Spotify client (desktop app, web player, phone or speaker).
 SpotiBee is a remote control; it never streams Spotify audio itself.
@@ -116,6 +116,29 @@ looked up in Spotify's catalogue by title and artist, and the length must agree 
 - **Auto-playlists** sync one way only (MusicBee → Spotify), since their contents come from a
   filter.
 - Deleting the MusicBee playlist unlinks it but leaves the Spotify playlist alone, and vice versa.
+
+## Searching Spotify
+
+Click the search button on the panel (next to the device picker), or use **Tools → SpotiBee:
+Search Spotify…** (also a hotkey). The window stays open while you use MusicBee.
+
+- Select one or more results (Ctrl/Shift), then **Play now**, **Play next**, **Add to queue**,
+  **Add to playlist**, or **♥ Like**. Double-click or press Enter to play now.
+- Songs you already own use your own file ("Your file" in the *In MusicBee* column). Anything
+  else gets a placeholder on the spot.
+- Adding to a synced playlist reaches Spotify a few seconds later. Liked tracks appear in your
+  MusicBee Liked Songs at the next sync.
+- **More results** loads the next 10; Spotify returns at most 10 per search.
+
+## Keeping the library tidy
+
+- **Your own copy wins.** When you add a song to your MusicBee library that you previously only
+  had as a placeholder (same title, artist and length), SpotiBee swaps your file into every
+  playlist that used the placeholder. The Spotify playlists don't change.
+- **Tools → SpotiBee: Clean Up Unused Placeholders…** finds placeholders that no MusicBee
+  playlist uses any more and, if you confirm, deletes them. Your own music files are never
+  touched. MusicBee's plugin API can't remove library entries, so MusicBee lists the deleted
+  placeholders as missing files until you remove missing files from the library yourself.
 
 ## Playing Spotify tracks from MusicBee
 

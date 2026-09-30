@@ -109,6 +109,15 @@ namespace SpotiBee.Library
             }
         }
 
+        public IReadOnlyList<TrackRecord> AllTracks
+        {
+            get
+            {
+                lock (sync)
+                    return tracks.Values.ToList();
+            }
+        }
+
         /// <summary>Local files that were searched for on Spotify without a match.</summary>
         public IReadOnlyList<string> UnmatchedPaths
         {

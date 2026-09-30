@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+- **Search Spotify** from a new search button on the panel, the Tools menu, or a hotkey. The
+  window stays open alongside MusicBee.
+  - Select one or more results and play now, play next, add to the queue, add to any MusicBee
+    playlist, or like on Spotify.
+  - Songs you own use your own file; others get a placeholder on the spot.
+  - Adding to a synced playlist reaches Spotify through the normal sync.
+- **Your own copy replaces placeholders**: when you add a song to your library that you only had
+  as a placeholder (same title, artist and length), your file is swapped into every playlist
+  that used the placeholder.
+- **Clean Up Unused Placeholders** (Tools menu): deletes placeholders no playlist uses any more,
+  after asking. Your own files are never touched.
+
 ## [0.4.0] – 2026-09-30
 
 ### Added

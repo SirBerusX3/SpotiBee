@@ -148,9 +148,13 @@ namespace SpotiBee.Spotify
             return snapshot;
         }
 
-        public async Task<Track[]> SearchTracksAsync(string query, int limit = MaxSearchResults, CancellationToken ct = default)
+        public async Task<Track[]> SearchTracksAsync(string query, int limit = MaxSearchResults, CancellationToken ct = default) =>
+            await SearchTracksPageAsync(query, 0, limit, ct).ConfigureAwait(false);
+
+        /// <summary>One page of track results; Spotify allows offsets up to 1000.</summary>
+        public async Task<Track[]> SearchTracksPageAsync(string query, int offset, int limit = MaxSearchResults, CancellationToken ct = default)
         {
-            var path = $"search?type=track&limit={Math.Min(limit, MaxSearchResults)}&market=from_token&q={Uri.EscapeDataString(query)}";
+            var path = $"search?type=track&limit={Math.Min(limit, MaxSearchResults)}&offset={Math.Max(0, Math.Min(1000, offset))}&market=from_token&q={Uri.EscapeDataString(query)}";
             var result = await GetAsync<SearchResponse>(path, ct).ConfigureAwait(false);
             return result?.Tracks?.Items?.Where(t => t != null).ToArray() ?? new Track[0];
         }

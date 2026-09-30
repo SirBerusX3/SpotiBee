@@ -83,6 +83,8 @@ namespace MusicBeePlugin
         {
             Diagnostics.Log("Close: " + reason);
             syncTimer?.Dispose();
+            tidyTimer?.Dispose();
+            tidyTimer = null;
             playlistSync?.Dispose();
             playlistSync = null;
             syncTimer = null;
@@ -129,6 +131,14 @@ namespace MusicBeePlugin
                 case NotificationType.VolumeMuteChanged:
                     OnUi(router.OnMuteChanged);
                     break;
+                case NotificationType.FileAddedToLibrary:
+                    // Batched: a folder scan adds files one notification at a time
+                    OnUi(() =>
+                    {
+                        addedFiles.Add(sourceFileUrl);
+                        addedFilesDue = DateTime.UtcNow.AddSeconds(5);
+                    });
+                    break;
             }
         }
 
@@ -154,6 +164,10 @@ namespace MusicBeePlugin
                 library = new MusicBeeLibrary(mbApiInterface);
                 playlistSync = new SyncScheduler(controller, library);
                 playlistSync.Start();
+
+                tidyTimer = new System.Windows.Forms.Timer { Interval = 1000 };
+                tidyTimer.Tick += (s, e) => UpgradeAddedFiles();
+                tidyTimer.Start();
 
                 // MusicBee may already be playing (e.g. resumed on startup)
                 var state = player.PlayState;
@@ -199,7 +213,7 @@ namespace MusicBeePlugin
             {
                 try
                 {
-                    var view = new NowPlayingPanel(controller, skin, ShowSettings) { Dock = DockStyle.Fill };
+                    var view = new NowPlayingPanel(controller, skin, ShowSettings, ShowSearch) { Dock = DockStyle.Fill };
                     panel.Controls.Add(view);
                 }
                 catch (Exception ex)
@@ -254,6 +268,7 @@ namespace MusicBeePlugin
                 mode,
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(controller.IsConnected ? "Settings / Disconnect…" : "Connect to Spotify…", null, (s, e) => ShowSettings()),
+                new ToolStripMenuItem("Search Spotify…", null, (s, e) => ShowSearch()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Import Spotify playlists…", null, (s, e) => ShowImport()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Send playlists to Spotify…", null, (s, e) => ShowSendToSpotify()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Sync playlists now", null, (s, e) => SyncNow()) { Enabled = controller.IsConnected },
@@ -268,10 +283,12 @@ namespace MusicBeePlugin
             menusAdded = true;
 
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee Settings…", null, (s, e) => ShowSettings());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Search Spotify…", "SpotiBee: Search Spotify", (s, e) => ShowSearch());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Import Spotify Playlists…", null, (s, e) => ShowImport());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Send Playlists to Spotify…", null, (s, e) => ShowSendToSpotify());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Sync Playlists Now", "SpotiBee: Sync Playlists Now", (s, e) => SyncNow());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Tracks Not Found on Spotify…", null, (s, e) => ShowUnmatched());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Clean Up Unused Placeholders…", null, (s, e) => CleanUpPlaceholders());
 
             // A hotkey description makes the command assignable in Preferences > Hotkeys
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Play or Pause", "SpotiBee: Play/Pause", async (s, e) => await controller.PlayPauseAsync());
@@ -340,6 +357,83 @@ namespace MusicBeePlugin
             }
             using var form = new SendToSpotifyForm(controller, library, playlistSync);
             form.ShowDialog(MainWindow);
+        }
+
+        private SearchForm searchWindow;
+        private System.Windows.Forms.Timer tidyTimer;
+        private readonly List<string> addedFiles = new List<string>();
+        private DateTime addedFilesDue;
+
+        private LibraryTidy Tidy()
+        {
+            var folder = controller.Settings.EffectivePlaceholderFolder;
+            return new LibraryTidy(library, controller.Store, p => PlaceholderWriter.IsUnder(p, folder), folder);
+        }
+
+        /// <summary>Swaps newly added local files in for their placeholders, once a batch of additions settles.</summary>
+        private void UpgradeAddedFiles()
+        {
+            if (addedFiles.Count == 0 || DateTime.UtcNow < addedFilesDue || library == null || controller == null)
+                return;
+            var batch = addedFiles.ToList();
+            addedFiles.Clear();
+            try
+            {
+                var upgraded = Tidy().UpgradePlaceholders(batch);
+                if (upgraded > 0)
+                    controller.ShowStatus($"Your own copy of {upgraded} song(s) now replaces the Spotify placeholder in your playlists.");
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Log("Upgrading placeholders", ex);
+            }
+        }
+
+        private void CleanUpPlaceholders()
+        {
+            if (library == null)
+                return;
+            var tidy = Tidy();
+            var orphans = tidy.FindOrphans(player.NowPlayingFile);
+            if (orphans.Count == 0)
+            {
+                MessageBox.Show(MainWindow, "Every Spotify placeholder is still used by a playlist. Nothing to clean up.",
+                    "SpotiBee", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            var megabytes = orphans.Sum(o => o.Bytes) / 1024.0 / 1024.0;
+            var answer = MessageBox.Show(MainWindow,
+                $"{orphans.Count} Spotify placeholder(s) ({megabytes:0.#} MB) aren't in any MusicBee playlist any more.\n\n" +
+                "Delete them? Your own music files are never touched.\n\n" +
+                "MusicBee will list the deleted placeholders as missing files until you remove missing files from the " +
+                "library in MusicBee. Plugins can't do that part.",
+                "Clean up placeholders", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
+            if (answer != DialogResult.Yes)
+                return;
+            var deleted = tidy.Delete(orphans);
+            controller.ShowStatus($"Deleted {deleted} unused placeholder(s).");
+        }
+
+        /// <summary>Opens the search window, or brings the open one to the front. It isn't modal, so MusicBee stays usable.</summary>
+        private void ShowSearch()
+        {
+            if (!controller.IsConnected || library == null)
+            {
+                ShowSettings();
+                return;
+            }
+            if (searchWindow == null || searchWindow.IsDisposed)
+            {
+                searchWindow = new SearchForm(controller, library);
+                searchWindow.FormClosed += (s, e) => searchWindow = null;
+                searchWindow.Show(MainWindow);
+            }
+            else
+            {
+                if (searchWindow.WindowState == FormWindowState.Minimized)
+                    searchWindow.WindowState = FormWindowState.Normal;
+                searchWindow.Activate();
+            }
         }
 
         private void ShowUnmatched()

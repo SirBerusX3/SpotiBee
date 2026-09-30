@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using static MusicBeePlugin.Plugin;
 
 namespace SpotiBee.Library
@@ -33,6 +34,12 @@ namespace SpotiBee.Library
         /// <summary>Auto-playlists are defined by a filter, so their contents can't be set.</summary>
         bool IsAutoPlaylist(string playlistUrl);
         LocalTrack GetTrack(string file);
+
+        // Now playing list
+        bool PlayNow(string[] files);
+        bool QueueNext(string[] files);
+        bool QueueLast(string[] files);
+        bool AppendToPlaylist(string playlistUrl, string[] files);
     }
 
     public sealed class MusicBeeLibrary : IMusicBeeLibrary
@@ -94,6 +101,17 @@ namespace SpotiBee.Library
         public string GetPlaylistName(string playlistUrl) => api.Playlist_GetName(playlistUrl);
 
         public bool IsAutoPlaylist(string playlistUrl) => api.Playlist_GetType(playlistUrl) == PlaylistFormat.Auto;
+
+        public bool PlayNow(string[] files)
+        {
+            if (files.Length == 0 || !api.NowPlayingList_PlayNow(files[0]))
+                return false;
+            return files.Length == 1 || api.NowPlayingList_QueueFilesNext(files.Skip(1).ToArray());
+        }
+
+        public bool QueueNext(string[] files) => files.Length > 0 && api.NowPlayingList_QueueFilesNext(files);
+        public bool QueueLast(string[] files) => files.Length > 0 && api.NowPlayingList_QueueFilesLast(files);
+        public bool AppendToPlaylist(string playlistUrl, string[] files) => files.Length > 0 && api.Playlist_AppendFiles(playlistUrl, files);
 
         public string AddToLibrary(string path) =>
             api.Library_AddFileToLibrary(path, LibraryCategory.Music) ?? path;
