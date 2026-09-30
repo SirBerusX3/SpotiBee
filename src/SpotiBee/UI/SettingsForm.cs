@@ -19,6 +19,9 @@ namespace SpotiBee.UI
         private readonly Button connect = new Button { AutoSize = true };
         private readonly Label accountStatus = new Label { AutoSize = true, MaximumSize = new Size(440, 0) };
         private readonly Button close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel };
+        private readonly TextBox placeholderFolder = new TextBox();
+        private readonly Button browse = new Button { Text = "Browse…", AutoSize = true };
+        private readonly ToolTip tips = new ToolTip();
         private CancellationTokenSource loginCancel;
 
         public SettingsForm(SpotiBeeController controller)
@@ -79,9 +82,26 @@ namespace SpotiBee.UI
             layout.Controls.Add(accountStatus, 0, 3);
             layout.SetColumnSpan(accountStatus, 3);
 
+            layout.Controls.Add(FieldLabel("Placeholders:"), 0, 4);
+            placeholderFolder.Dock = DockStyle.Fill;
+            placeholderFolder.Text = controller.Settings.EffectivePlaceholderFolder;
+            tips.SetToolTip(placeholderFolder, "Where silent stand-in files for Spotify-only tracks are created. Changing this doesn't move existing ones.");
+            layout.Controls.Add(placeholderFolder, 1, 4);
+            browse.Click += (s, e) =>
+            {
+                using var dialog = new FolderBrowserDialog
+                {
+                    Description = "Folder for SpotiBee placeholder tracks",
+                    SelectedPath = placeholderFolder.Text,
+                };
+                if (dialog.ShowDialog(this) == DialogResult.OK)
+                    placeholderFolder.Text = dialog.SelectedPath;
+            };
+            layout.Controls.Add(browse, 2, 4);
+
             var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Dock = DockStyle.Fill };
             buttons.Controls.Add(close);
-            layout.Controls.Add(buttons, 0, 4);
+            layout.Controls.Add(buttons, 0, 5);
             layout.SetColumnSpan(buttons, 3);
 
             Controls.Add(layout);
@@ -175,13 +195,26 @@ namespace SpotiBee.UI
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             loginCancel?.Cancel();
+            var folder = placeholderFolder.Text.Trim();
+            var chosen = string.Equals(folder, PluginSettings.DefaultPlaceholderFolder, StringComparison.OrdinalIgnoreCase) || folder.Length == 0
+                ? null
+                : folder;
+            if (chosen != controller.Settings.PlaceholderFolder)
+            {
+                controller.Settings.PlaceholderFolder = chosen;
+                try { controller.Settings.Save(); }
+                catch (Exception ex) { MessageBox.Show(this, "Couldn't save settings: " + ex.Message, "SpotiBee"); }
+            }
             base.OnFormClosing(e);
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
+            {
                 controller.ConnectionChanged -= OnConnectionChanged;
+                tips.Dispose();
+            }
             base.Dispose(disposing);
         }
 

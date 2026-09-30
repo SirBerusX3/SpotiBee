@@ -2,11 +2,11 @@
 
 A MusicBee plugin that bridges MusicBee and Spotify.
 
-**Status: phase 1**: Spotify login, now-playing panel, transport controls, device switching.
+**Status: phase 2**: Spotify login, now-playing panel, controls, and playlist import.
 
 Planned:
 1. ~~Connect + now playing + controls~~
-2. Import Spotify playlists into MusicBee as placeholder tracks
+2. ~~Import Spotify playlists into MusicBee as placeholder tracks~~
 3. Play placeholder tracks through Spotify, kept in sync with MusicBee's player
 4. Lyrics for Spotify tracks via MusicBee's lyrics system
 5. Two-way playlist sync, search, "add to playlist" from the panel
@@ -50,11 +50,40 @@ That copies to `%APPDATA%\MusicBee\Plugins`. Override with `-p:MusicBeePluginsDi
 
 Optional: assign hotkeys under **Preferences → Hotkeys** (search for "SpotiBee").
 
+## Importing playlists
+
+**Tools → SpotiBee: Import Spotify Playlists…** (or the panel header menu). Tick playlists and
+click Import. Each one becomes a MusicBee playlist in a **Spotify** playlist folder:
+
+- Songs you already have locally use **your own file**. They're matched by artist and title,
+  and the length has to agree within 4 seconds, so live versions and edits don't get mixed up.
+- Everything else gets a **placeholder**: a tiny silent Opus file (about 6 KB plus artwork)
+  tagged with the Spotify track's details. Placeholders are added to your library and stored in
+  `Music\SpotiBee\Artist\Album\`.
+- Re-importing updates the same MusicBee playlist in place. Previously imported playlists are
+  ticked automatically, so importing again refreshes them all.
+
+To hide placeholders from a view, filter on **Encoder is SpotiBee**, or on the path containing
+`\Music\SpotiBee\`.
+
+Spotify limits (Development Mode apps, since February 2026):
+- Only playlists you **own or collaborate on** can be imported. To import someone else's
+  playlist, copy its songs into a playlist of your own in Spotify first.
+- Liked Songs can be imported.
+- Podcast episodes and Spotify "local files" without a match in your library are skipped.
+
+Placeholders don't produce sound yet. Playing them through Spotify is phase 3.
+
 ## Where things are stored
 
-`%APPDATA%\MusicBee\SpotiBee\settings.json` holds the Client ID, preferred device and the
-refresh token. The token is encrypted with Windows DPAPI for your Windows user account.
-Disconnecting removes it; uninstalling the plugin from MusicBee deletes the folder.
+In `%APPDATA%\MusicBee\SpotiBee\`:
+- `settings.json` holds the Client ID, preferred device, placeholder folder, and the refresh
+  token. The token is encrypted with Windows DPAPI for your Windows user account.
+- `library.json` links Spotify tracks to their placeholder and/or local file, and records
+  which MusicBee playlist each import became. Your music files' tags are never changed.
+
+Disconnecting removes the token; uninstalling the plugin from MusicBee deletes the folder.
+Placeholder files are left alone, because they're part of your MusicBee library.
 
 ## Troubleshooting
 
@@ -75,6 +104,7 @@ src/SpotiBee/
   SpotiBeeController.cs   Connection lifecycle + playback commands
   PluginSettings.cs       Persisted settings (DPAPI-protected refresh token)
   Spotify/                Web API client, PKCE auth, playback polling, JSON models
+  Library/                Playlist import, local matching, placeholder files, track store
   UI/                     Dockable now-playing panel, settings window, skin colours
   MusicBeeInterface.cs    MusicBee plugin API (copied unmodified from the SDK)
 MusicBee plugin API/      Original MusicBee SDK samples, for reference

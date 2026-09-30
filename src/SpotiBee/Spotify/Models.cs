@@ -92,6 +92,13 @@ namespace SpotiBee.Spotify
         [DataMember(Name = "album")] public Album Album { get; set; }
         [DataMember(Name = "show")] public Show Show { get; set; }
         [DataMember(Name = "images")] public Image[] Images { get; set; }
+        [DataMember(Name = "track_number")] public int TrackNumber { get; set; }
+        [DataMember(Name = "disc_number")] public int DiscNumber { get; set; }
+        [DataMember(Name = "explicit")] public bool Explicit { get; set; }
+        [DataMember(Name = "external_ids")] public ExternalIds ExternalIds { get; set; }
+        [DataMember(Name = "type")] public string Type { get; set; }
+
+        public bool IsTrack => Type == null || Type == "track";
 
         public string ArtistNames =>
             Artists != null && Artists.Length > 0
@@ -118,6 +125,14 @@ namespace SpotiBee.Spotify
         [DataMember(Name = "name")] public string Name { get; set; }
         [DataMember(Name = "uri")] public string Uri { get; set; }
         [DataMember(Name = "images")] public Image[] Images { get; set; }
+        [DataMember(Name = "artists")] public Artist[] Artists { get; set; }
+        [DataMember(Name = "release_date")] public string ReleaseDate { get; set; }
+    }
+
+    [DataContract]
+    public class ExternalIds
+    {
+        [DataMember(Name = "isrc")] public string Isrc { get; set; }
     }
 
     [DataContract]
@@ -134,6 +149,64 @@ namespace SpotiBee.Spotify
         [DataMember(Name = "url")] public string Url { get; set; }
         [DataMember(Name = "width")] public int? Width { get; set; }
         [DataMember(Name = "height")] public int? Height { get; set; }
+    }
+
+    // Playlists and library
+
+    [DataContract]
+    public class Paging<T>
+    {
+        [DataMember(Name = "items")] public T[] Items { get; set; }
+        [DataMember(Name = "next")] public string Next { get; set; }
+        [DataMember(Name = "total")] public int Total { get; set; }
+    }
+
+    [DataContract]
+    public class Playlist
+    {
+        [DataMember(Name = "id")] public string Id { get; set; }
+        [DataMember(Name = "name")] public string Name { get; set; }
+        [DataMember(Name = "uri")] public string Uri { get; set; }
+        [DataMember(Name = "collaborative")] public bool Collaborative { get; set; }
+        [DataMember(Name = "snapshot_id")] public string SnapshotId { get; set; }
+        [DataMember(Name = "owner")] public PlaylistOwner Owner { get; set; }
+        [DataMember(Name = "images")] public Image[] Images { get; set; }
+        // Renamed from "tracks" in Feb 2026; both are mapped so either API shape works
+        [DataMember(Name = "items")] public PlaylistItemCount Items { get; set; }
+        [DataMember(Name = "tracks")] public PlaylistItemCount LegacyTracks { get; set; }
+
+        public int ItemCount => Items?.Total ?? LegacyTracks?.Total ?? 0;
+
+        public override string ToString() => Name;
+    }
+
+    [DataContract]
+    public class PlaylistOwner
+    {
+        [DataMember(Name = "id")] public string Id { get; set; }
+        [DataMember(Name = "display_name")] public string DisplayName { get; set; }
+    }
+
+    [DataContract]
+    public class PlaylistItemCount
+    {
+        [DataMember(Name = "total")] public int Total { get; set; }
+    }
+
+    [DataContract]
+    public class PlaylistItem
+    {
+        [DataMember(Name = "is_local")] public bool IsLocal { get; set; }
+        [DataMember(Name = "item")] public Track Item { get; set; }
+        [DataMember(Name = "track")] public Track LegacyTrack { get; set; }
+
+        public Track Track => Item ?? LegacyTrack;
+    }
+
+    [DataContract]
+    public class SavedTrack
+    {
+        [DataMember(Name = "track")] public Track Track { get; set; }
     }
 
     // Request bodies

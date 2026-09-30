@@ -91,6 +91,40 @@ namespace SpotiBee.Spotify
             SendAsync(HttpMethod.Put, "me/player",
                 Json.Stringify(new TransferRequest { DeviceIds = new[] { deviceId }, Play = play }));
 
+        // --- Playlists and library ----------------------------------------
+
+        public Task<Playlist[]> GetMyPlaylistsAsync(CancellationToken ct = default) =>
+            GetAllPagesAsync<Playlist>("me/playlists?limit=50", ct);
+
+        public Task<Playlist> GetPlaylistAsync(string playlistId, CancellationToken ct = default) =>
+            GetAsync<Playlist>($"playlists/{Uri.EscapeDataString(playlistId)}?fields=id,name,uri,snapshot_id,owner(id,display_name)", ct);
+
+        /// <summary>Only works for playlists the user owns or collaborates on (Spotify returns 403 otherwise).</summary>
+        public Task<PlaylistItem[]> GetPlaylistItemsAsync(string playlistId, IProgress<int> progress = null, CancellationToken ct = default) =>
+            GetAllPagesAsync<PlaylistItem>($"playlists/{Uri.EscapeDataString(playlistId)}/items?limit=50", ct, progress);
+
+        public Task<SavedTrack[]> GetSavedTracksAsync(IProgress<int> progress = null, CancellationToken ct = default) =>
+            GetAllPagesAsync<SavedTrack>("me/tracks?limit=50", ct, progress);
+
+        /// <summary>Follows "next" links until every page is fetched. Progress reports the running item count.</summary>
+        private async Task<T[]> GetAllPagesAsync<T>(string firstPath, CancellationToken ct, IProgress<int> progress = null)
+        {
+            var all = new List<T>();
+            var path = firstPath;
+            while (path != null)
+            {
+                ct.ThrowIfCancellationRequested();
+                var page = await GetAsync<Paging<T>>(path, ct).ConfigureAwait(false);
+                if (page?.Items != null)
+                    all.AddRange(page.Items);
+                progress?.Report(all.Count);
+                path = page?.Next != null && page.Next.StartsWith(ApiBase, StringComparison.Ordinal)
+                    ? page.Next.Substring(ApiBase.Length)
+                    : null;
+            }
+            return all.ToArray();
+        }
+
         // --- Plumbing ------------------------------------------------------
 
         private async Task<T> GetAsync<T>(string path, CancellationToken ct) where T : class

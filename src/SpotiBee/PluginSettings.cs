@@ -18,6 +18,16 @@ namespace SpotiBee
 
         [DataMember] public string PreferredDeviceId { get; set; }
 
+        /// <summary>Where placeholder files go; null means the default under the user's Music folder.</summary>
+        [DataMember] public string PlaceholderFolder { get; set; }
+
+        public static string DefaultPlaceholderFolder =>
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyMusic), "SpotiBee");
+
+        [IgnoreDataMember]
+        public string EffectivePlaceholderFolder =>
+            string.IsNullOrWhiteSpace(PlaceholderFolder) ? DefaultPlaceholderFolder : PlaceholderFolder;
+
         [IgnoreDataMember] public string FilePath { get; private set; }
 
         [IgnoreDataMember]

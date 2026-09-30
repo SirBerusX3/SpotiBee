@@ -1,10 +1,12 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using SpotiBee.Library;
 using SpotiBee.Spotify;
 
 namespace SpotiBee
@@ -25,9 +27,15 @@ namespace SpotiBee
             http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             http.DefaultRequestHeaders.UserAgent.ParseAdd("SpotiBee/0.1 (MusicBee plugin)");
             Settings = PluginSettings.Load(settingsPath);
+            Store = new TrackStore(Path.Combine(Path.GetDirectoryName(settingsPath), "library.json"));
         }
 
         public PluginSettings Settings { get; }
+        public TrackStore Store { get; }
+
+        /// <summary>Null when not connected.</summary>
+        internal SpotifyClient Client => client;
+        internal HttpClient Http => http;
         public UserProfile User { get; private set; }
         public PlaybackSnapshot LastSnapshot { get; private set; }
         public bool IsConnected => client != null;

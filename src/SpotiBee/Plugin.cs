@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Windows.Forms;
 using SpotiBee;
+using SpotiBee.Library;
 using SpotiBee.UI;
 
 namespace MusicBeePlugin
@@ -102,6 +103,7 @@ namespace MusicBeePlugin
             return new List<ToolStripItem>
             {
                 new ToolStripMenuItem(controller.IsConnected ? "Settings / Disconnect…" : "Connect to Spotify…", null, (s, e) => ShowSettings()),
+                new ToolStripMenuItem("Import Spotify playlists…", null, (s, e) => ShowImport()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Open Spotify", null, (s, e) => controller.OpenSpotifyApp()),
             };
         }
@@ -113,6 +115,7 @@ namespace MusicBeePlugin
             menusAdded = true;
 
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee Settings…", null, (s, e) => ShowSettings());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Import Spotify Playlists…", null, (s, e) => ShowImport());
 
             // A hotkey description makes the command assignable in Preferences > Hotkeys
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Play or Pause", "SpotiBee: Play/Pause", async (s, e) => await controller.PlayPauseAsync());
@@ -123,8 +126,20 @@ namespace MusicBeePlugin
         private void ShowSettings()
         {
             using var form = new SettingsForm(controller);
-            var owner = Control.FromHandle(mbApiInterface.MB_GetWindowHandle());
-            form.ShowDialog(owner);
+            form.ShowDialog(MainWindow);
         }
+
+        private void ShowImport()
+        {
+            if (!controller.IsConnected)
+            {
+                ShowSettings();
+                return;
+            }
+            using var form = new ImportForm(controller, new MusicBeeLibrary(mbApiInterface));
+            form.ShowDialog(MainWindow);
+        }
+
+        private IWin32Window MainWindow => Control.FromHandle(mbApiInterface.MB_GetWindowHandle());
     }
 }
