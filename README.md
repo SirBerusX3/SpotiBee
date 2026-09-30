@@ -97,12 +97,13 @@ queue, progress bar and play counts behave normally. The panel shows **MusicBee 
 - **Losing Spotify** (no connection, device gone, playback stalled): a track you have locally
   carries on from your file at the same point, and a Spotify-only track is skipped. Spotify
   is retried after a minute.
-- **Scrobbling:** Spotify scrobbles its own plays if it's linked to Last.fm, so SpotiBee turns
-  MusicBee's *Scrobble* toggle off while a Spotify track plays and back on afterwards. Your
-  Last.fm connection isn't touched. You can turn this off in settings.
+- **Scrobbling:** SpotiBee doesn't touch it. MusicBee scrobbles placeholders like any other
+  track, with correct tags. To avoid double scrobbles, unlink Spotify from Last.fm (Last.fm →
+  Settings → Applications). MusicBee's plugin API has no way to skip a single scrobble:
+  switching its Scrobble toggle signs you out of Last.fm.
 - **In Spotify first mode**, SpotiBee mutes MusicBee while Spotify plays one of your own files.
   Unmuting switches that track back to your file. SpotiBee never unmutes a mute you set yourself.
-- If MusicBee closes unexpectedly, any mute or scrobble change is undone the next time it starts.
+- If MusicBee closes unexpectedly, a mute SpotiBee applied is undone the next time it starts.
 
 ## Where things are stored
 
@@ -124,7 +125,9 @@ Placeholder files are left alone, because they're part of your MusicBee library.
   must match `http://127.0.0.1:5543/callback` exactly.
 - **Port 5543 in use**: another app is holding the callback port; close it and retry.
 - Status and error messages appear at the bottom of the panel and are also written to
-  MusicBee's trace output (`MB_Trace`), prefixed with `SpotiBee:`.
+  MusicBee's log (`%APPDATA%\MusicBee\ErrorLog.dat`), prefixed with `SpotiBee:`.
+- **Tools → SpotiBee: Save Diagnostics Report** writes connection, playback and panel state
+  plus recent log lines to `%APPDATA%\MusicBee\SpotiBee\diagnostics.txt`.
 
 ## Project layout
 

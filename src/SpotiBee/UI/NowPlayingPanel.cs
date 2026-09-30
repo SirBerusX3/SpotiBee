@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -52,6 +53,9 @@ namespace SpotiBee.UI
             this.controller = controller;
             this.skin = skin;
             this.openSettings = openSettings;
+            lock (Live)
+                Live.Add(new WeakReference<NowPlayingPanel>(this));
+            Diagnostics.Log($"Panel #{id} constructing");
 
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
             // Not CreateGraphics(): that creates the handle, firing OnHandleCreated before the controls exist
@@ -148,6 +152,7 @@ namespace SpotiBee.UI
             initialised = true;
             UpdateRouteDisplay();
             PerformLayout();
+            Diagnostics.Log($"Panel #{id} constructed");
         }
 
         /// <summary>The fixed height MusicBee should reserve for this panel.</summary>
@@ -241,14 +246,23 @@ namespace SpotiBee.UI
         private void Ui(Action action)
         {
             if (IsDisposed || !IsHandleCreated)
+            {
+                skippedUpdates++;
                 return;
-            try { BeginInvoke(action); }
+            }
+            void Guarded()
+            {
+                try { action(); }
+                catch (Exception ex) { Diagnostics.Log($"Panel #{id} update", ex); }
+            }
+            try { BeginInvoke((Action)Guarded); }
             catch (InvalidOperationException) { /* handle destroyed between checks */ }
         }
 
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
+            Diagnostics.Log($"Panel #{id} handle created (initialised={initialised}, size={Size})");
             if (!initialised)
                 return;
             // Catch up on anything that happened before the handle existed
@@ -257,11 +271,71 @@ namespace SpotiBee.UI
                 ApplySnapshot(controller.LastSnapshot);
         }
 
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            Diagnostics.Log($"Panel #{id} handle destroyed");
+            base.OnHandleDestroyed(e);
+        }
+
+        protected override void OnParentChanged(EventArgs e)
+        {
+            base.OnParentChanged(e);
+            Diagnostics.Log($"Panel #{id} parent is now {Parent?.GetType().FullName ?? "none"} {Parent?.Size}");
+        }
+
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            Diagnostics.Log($"Panel #{id} visible={Visible}");
+        }
+
+        protected override void OnSizeChanged(EventArgs e)
+        {
+            base.OnSizeChanged(e);
+            if (sizeLogs++ < 6)
+                Diagnostics.Log($"Panel #{id} size={Size}");
+        }
+
+        // --- Diagnostics ----------------------------------------------------
+
+        private static readonly List<WeakReference<NowPlayingPanel>> Live = new List<WeakReference<NowPlayingPanel>>();
+        private static int nextId;
+        private readonly int id = System.Threading.Interlocked.Increment(ref nextId);
+        private int sizeLogs;
+        private int skippedUpdates;
+
+        public static IEnumerable<NowPlayingPanel> LivePanels
+        {
+            get
+            {
+                lock (Live)
+                {
+                    Live.RemoveAll(w => !w.TryGetTarget(out _));
+                    return Live.Select(w => w.TryGetTarget(out var p) ? p : null).Where(p => p != null).ToList();
+                }
+            }
+        }
+
+        public string Describe()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"Panel #{id}: disposed={IsDisposed} handle={IsHandleCreated} visible={Visible} initialised={initialised} " +
+                          $"bounds={Bounds} back={BackColor} fore={ForeColor} skippedUpdates={skippedUpdates}");
+            var depth = 1;
+            for (var c = Parent; c != null && depth <= 6; c = c.Parent, depth++)
+                sb.AppendLine($"  parent {depth}: {c.GetType().FullName} visible={c.Visible} bounds={c.Bounds} back={c.BackColor}");
+            foreach (Control c in Controls)
+                sb.AppendLine($"  child {c.GetType().Name,-12} visible={c.Visible,-5} bounds={c.Bounds} fore={c.ForeColor.Name} back={c.BackColor.Name} text=\"{c.Text.Replace("\n", " ")}\"");
+            sb.AppendLine($"  snapshot: {(snapshot?.State?.Item?.Name ?? "(none)")} playing={snapshot?.IsPlaying}");
+            return sb.ToString();
+        }
+
         // --- Rendering -----------------------------------------------------
 
         private void ShowConnectionState()
         {
             var connected = controller.IsConnected;
+            Diagnostics.Log($"Panel #{id} connection state: connected={connected}");
             disconnected.Visible = !connected;
             if (!connected)
             {

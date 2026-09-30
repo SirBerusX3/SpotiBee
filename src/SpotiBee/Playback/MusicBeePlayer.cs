@@ -34,13 +34,6 @@ namespace SpotiBee.Playback
             set => api.Player_SetMute(value);
         }
 
-        // This is the player's "Scrobble" toggle, not the Last.fm account connection
-        public bool ScrobbleEnabled
-        {
-            get => api.Player_GetScrobbleEnabled();
-            set => api.Player_SetScrobbleEnabled(value);
-        }
-
         public void PlayPause() => api.Player_PlayPause();
         public void Next() => api.Player_PlayNextTrack();
         public void Previous() => api.Player_PlayPreviousTrack();

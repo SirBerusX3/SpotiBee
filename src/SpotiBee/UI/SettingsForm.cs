@@ -21,11 +21,6 @@ namespace SpotiBee.UI
         private readonly Button close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel };
         private readonly TextBox placeholderFolder = new TextBox();
         private readonly Button browse = new Button { Text = "Browse…", AutoSize = true };
-        private readonly CheckBox skipScrobbles = new CheckBox
-        {
-            Text = "Don't let MusicBee scrobble tracks that play through Spotify",
-            AutoSize = true,
-        };
         private readonly ToolTip tips = new ToolTip();
         private CancellationTokenSource loginCancel;
 
@@ -104,18 +99,9 @@ namespace SpotiBee.UI
             };
             layout.Controls.Add(browse, 2, 4);
 
-            skipScrobbles.Checked = !controller.Settings.AllowMusicBeeScrobblesForSpotify;
-            skipScrobbles.Margin = new Padding(0, 8, 0, 0);
-            tips.SetToolTip(skipScrobbles,
-                "Spotify scrobbles these itself if it's connected to Last.fm, so MusicBee would count them twice.\n" +
-                "SpotiBee switches MusicBee's Scrobble toggle off while they play and back on afterwards.\n" +
-                "Your Last.fm connection isn't changed.");
-            layout.Controls.Add(skipScrobbles, 0, 5);
-            layout.SetColumnSpan(skipScrobbles, 3);
-
             var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Dock = DockStyle.Fill };
             buttons.Controls.Add(close);
-            layout.Controls.Add(buttons, 0, 6);
+            layout.Controls.Add(buttons, 0, 5);
             layout.SetColumnSpan(buttons, 3);
 
             Controls.Add(layout);
@@ -213,11 +199,9 @@ namespace SpotiBee.UI
             var chosen = string.Equals(folder, PluginSettings.DefaultPlaceholderFolder, StringComparison.OrdinalIgnoreCase) || folder.Length == 0
                 ? null
                 : folder;
-            var allowScrobbles = !skipScrobbles.Checked;
-            if (chosen != controller.Settings.PlaceholderFolder || allowScrobbles != controller.Settings.AllowMusicBeeScrobblesForSpotify)
+            if (chosen != controller.Settings.PlaceholderFolder)
             {
                 controller.Settings.PlaceholderFolder = chosen;
-                controller.Settings.AllowMusicBeeScrobblesForSpotify = allowScrobbles;
                 try { controller.Settings.Save(); }
                 catch (Exception ex) { MessageBox.Show(this, "Couldn't save settings: " + ex.Message, "SpotiBee"); }
             }

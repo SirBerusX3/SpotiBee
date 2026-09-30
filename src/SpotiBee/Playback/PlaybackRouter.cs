@@ -35,7 +35,6 @@ namespace SpotiBee.Playback
         int DurationMs { get; }
         float Volume { get; set; }
         bool Muted { get; set; }
-        bool ScrobbleEnabled { get; set; }
         void PlayPause();
         void Next();
         void Previous();
@@ -56,7 +55,7 @@ namespace SpotiBee.Playback
 
     /// <summary>
     /// Decides, track by track, whether MusicBee or Spotify makes the sound, and keeps the two
-    /// in step while Spotify is playing: play/pause, seeking, drift, volume, scrobbling and fallback.
+    /// in step while Spotify is playing: play/pause, seeking, drift, volume and fallback.
     /// All members must be called on MusicBee's UI thread.
     /// </summary>
     public sealed class PlaybackRouter
@@ -65,7 +64,6 @@ namespace SpotiBee.Playback
         private static readonly TimeSpan MirrorGrace = TimeSpan.FromSeconds(2.5);
         private static readonly TimeSpan FailureTimeout = TimeSpan.FromSeconds(6);
         private static readonly TimeSpan UnavailableBackoff = TimeSpan.FromSeconds(60);
-        private static readonly TimeSpan ScrobbleRestoreDelay = TimeSpan.FromSeconds(8);
         private static readonly TimeSpan VolumeDebounce = TimeSpan.FromMilliseconds(250);
         private static readonly TimeSpan VolumeEchoWindow = TimeSpan.FromSeconds(3);
         private const int SeekThresholdMs = 1500;
@@ -106,7 +104,6 @@ namespace SpotiBee.Playback
         private string currentDeviceId;
 
         private PlayState? expectedMbState;
-        private DateTime? scrobbleRestoreAt;
         private int consecutiveSkips;
         private DateTime lastSkipAt;
 
@@ -177,19 +174,13 @@ namespace SpotiBee.Playback
 
         // --- MusicBee events ---------------------------------------------
 
-        /// <summary>Call once at startup: undoes a mute or scrobble change left behind if MusicBee closed unexpectedly.</summary>
+        /// <summary>Call once at startup: undoes a mute left behind if MusicBee closed unexpectedly.</summary>
         public void RecoverFromPreviousSession()
         {
-            if (settings.MuteAppliedBySpotiBee)
-            {
-                mb.Muted = false;
-                settings.MuteAppliedBySpotiBee = false;
-            }
-            if (settings.ScrobbleSuppressedBySpotiBee)
-            {
-                mb.ScrobbleEnabled = true;
-                settings.ScrobbleSuppressedBySpotiBee = false;
-            }
+            if (!settings.MuteAppliedBySpotiBee)
+                return;
+            mb.Muted = false;
+            settings.MuteAppliedBySpotiBee = false;
             SaveSettings();
         }
 
@@ -296,27 +287,10 @@ namespace SpotiBee.Playback
             }
         }
 
-        public void OnScrobbleChanged()
-        {
-            // The user switched scrobbling back on themselves; don't flip it again later
-            if (settings.ScrobbleSuppressedBySpotiBee && mb.ScrobbleEnabled)
-            {
-                settings.ScrobbleSuppressedBySpotiBee = false;
-                scrobbleRestoreAt = null;
-                SaveSettings();
-            }
-        }
-
         /// <summary>Call every ~500 ms on the UI thread.</summary>
         public void Tick()
         {
             var t = now();
-
-            if (scrobbleRestoreAt.HasValue && t >= scrobbleRestoreAt.Value)
-            {
-                scrobbleRestoreAt = null;
-                RestoreScrobbleNow();
-            }
 
             if (pendingVolume.HasValue && t >= pendingVolumeAt)
             {
@@ -496,7 +470,6 @@ namespace SpotiBee.Playback
                 settings.MuteAppliedBySpotiBee = true;
                 SaveSettings();
             }
-            SuppressScrobble();
 
             // MusicBee's slider is the master volume while it's driving Spotify
             pendingVolume = ToPercent(mb.Volume);
@@ -540,9 +513,6 @@ namespace SpotiBee.Playback
                 if (mb.Muted)
                     mb.Muted = false;
             }
-            // Delay restoring scrobbles so MusicBee can't submit the Spotify track that just ended
-            if (settings.ScrobbleSuppressedBySpotiBee && !scrobbleRestoreAt.HasValue)
-                scrobbleRestoreAt = now() + ScrobbleRestoreDelay;
 
             if (pauseSpotify && wasSpotify)
                 _ = Try(spotify.PauseAsync, generation);
@@ -592,41 +562,12 @@ namespace SpotiBee.Playback
             mb.Next();
         }
 
-        private void SuppressScrobble()
-        {
-            scrobbleRestoreAt = null;
-            if (settings.AllowMusicBeeScrobblesForSpotify || settings.ScrobbleSuppressedBySpotiBee)
-                return;
-            if (mb.ScrobbleEnabled)
-            {
-                settings.ScrobbleSuppressedBySpotiBee = true;
-                SaveSettings();
-                mb.ScrobbleEnabled = false;
-            }
-        }
-
-        private void RestoreScrobbleNow()
-        {
-            if (!settings.ScrobbleSuppressedBySpotiBee || Route == PlaybackRoute.Spotify)
-                return;
-            settings.ScrobbleSuppressedBySpotiBee = false;
-            SaveSettings();
-            mb.ScrobbleEnabled = true;
-        }
-
         /// <summary>Undo everything SpotiBee changed in MusicBee. Call when the plugin closes.</summary>
         public void Shutdown()
         {
             if (Route == PlaybackRoute.Spotify)
                 _ = Try(spotify.PauseAsync, generation);
             EnterMusicBee(pauseSpotify: false);
-            scrobbleRestoreAt = null;
-            if (settings.ScrobbleSuppressedBySpotiBee)
-            {
-                settings.ScrobbleSuppressedBySpotiBee = false;
-                mb.ScrobbleEnabled = true;
-                SaveSettings();
-            }
         }
 
         // --- Helpers -----------------------------------------------------
