@@ -13,6 +13,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
     playlist, or like on Spotify.
   - Songs you own use your own file; others get a placeholder on the spot.
   - Adding to a synced playlist reaches Spotify through the normal sync.
+  - **Search in** Everything, Artist, Song or Album; the choice is remembered.
 - **Your own copy replaces placeholders**: when you add a song to your library that you only had
   as a placeholder (same title, artist and length), your file is swapped into every playlist
   that used the placeholder.

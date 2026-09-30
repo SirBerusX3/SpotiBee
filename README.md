@@ -122,6 +122,9 @@ looked up in Spotify's catalogue by title and artist, and the length must agree 
 Click the search button on the panel (next to the device picker), or use **Tools → SpotiBee:
 Search Spotify…** (also a hotkey). The window stays open while you use MusicBee.
 
+- **Search in** narrows results to an *Artist*, *Song* or *Album*. *Everything* is a plain
+  keyword search, which Spotify pads with popular songs by similar artists. You can also type
+  Spotify filters yourself, e.g. `year:1994`.
 - Select one or more results (Ctrl/Shift), then **Play now**, **Play next**, **Add to queue**,
   **Add to playlist**, or **♥ Like**. Double-click or press Enter to play now.
 - Songs you already own use your own file ("Your file" in the *In MusicBee* column). Anything

@@ -20,6 +20,7 @@ namespace SpotiBee.UI
         private readonly IMusicBeeLibrary musicBee;
         private readonly TrackActions actions;
 
+        private readonly ComboBox scope = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 110, Margin = new Padding(0, 3, 6, 3) };
         private readonly TextBox query = new TextBox { Dock = DockStyle.Fill };
         private readonly Button search = new Button { Text = "Search", AutoSize = true };
         private readonly ListView results = new ListView
@@ -62,11 +63,22 @@ namespace SpotiBee.UI
             Padding = new Padding(10);
             AcceptButton = search;
 
-            var top = new TableLayoutPanel { Dock = DockStyle.Top, Height = 32, ColumnCount = 2 };
+            var top = new TableLayoutPanel { Dock = DockStyle.Top, Height = 32, ColumnCount = 3 };
+            top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             top.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            top.Controls.Add(query, 0, 0);
-            top.Controls.Add(search, 1, 0);
+            scope.Items.AddRange(Scopes.Select(s => (object)s.Label).ToArray());
+            scope.SelectedIndex = Math.Max(0, Math.Min(Scopes.Length - 1, controller.Settings.SearchScope));
+            scope.SelectedIndexChanged += async (s, e) =>
+            {
+                controller.Settings.SearchScope = scope.SelectedIndex;
+                try { controller.Settings.Save(); } catch { /* only a preference */ }
+                if (query.Text.Trim().Length > 0)
+                    await NewSearchAsync();
+            };
+            top.Controls.Add(scope, 0, 0);
+            top.Controls.Add(query, 1, 0);
+            top.Controls.Add(search, 2, 0);
 
             results.Columns.Add("Title", 260);
             results.Columns.Add("Artist", 170);
@@ -114,15 +126,38 @@ namespace SpotiBee.UI
                 playlistMenu.Show(addToPlaylist, new Point(0, addToPlaylist.Height));
             };
 
-            status.Text = "Search by song, artist or album. Select several results with Ctrl or Shift.";
+            status.Text = "Choose what to search in, or use Everything. Select several results with Ctrl or Shift.";
             UpdateButtons();
         }
 
         // --- Searching -----------------------------------------------------
 
+        /// <summary>Spotify search field filters. "Everything" is a plain keyword search, which Spotify
+        /// pads with popular tracks by similar artists.</summary>
+        private static readonly (string Label, string Filter)[] Scopes =
+        {
+            ("Everything", null),
+            ("Artist", "artist"),
+            ("Song", "track"),
+            ("Album", "album"),
+        };
+
+        // Spotify's own field filters; a colon alone (as in "Re: Your Brains") doesn't count
+        private static readonly System.Text.RegularExpressions.Regex TypedFilter = new System.Text.RegularExpressions.Regex(
+            @"\b(artist|track|album|year|genre|isrc|upc|tag):", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        /// <summary>Applies the chosen filter, unless the user already typed their own (e.g. year:1994).</summary>
+        internal static string BuildQuery(string text, int scopeIndex)
+        {
+            var filter = scopeIndex >= 0 && scopeIndex < Scopes.Length ? Scopes[scopeIndex].Filter : null;
+            if (filter == null || TypedFilter.IsMatch(text))
+                return text;
+            return $"{filter}:\"{text.Replace("\"", "")}\"";
+        }
+
         private async Task NewSearchAsync()
         {
-            lastQuery = query.Text.Trim();
+            lastQuery = BuildQuery(query.Text.Trim(), scope.SelectedIndex);
             nextOffset = 0;
             if (lastQuery.Length > 0)
                 await LoadPageAsync(append: false);
