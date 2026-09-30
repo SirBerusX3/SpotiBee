@@ -177,25 +177,47 @@ namespace MusicBeePlugin
         public int OnDockablePanelCreated(Control panel)
         {
             Diagnostics.Log($"OnDockablePanelCreated: host={panel?.GetType().FullName} size={panel?.Size} controller={(controller != null)}");
-            try
+            skin ??= SkinColours.FromMusicBee(mbApiInterface);
+
+            void Create()
             {
-                skin ??= SkinColours.FromMusicBee(mbApiInterface);
-                var view = new NowPlayingPanel(controller, skin, ShowSettings) { Dock = DockStyle.Fill };
-                panel.Controls.Add(view);
-                return view.PreferredHeight;
-            }
-            catch (Exception ex)
-            {
-                // Show the problem instead of leaving an empty panel
-                Diagnostics.Log("Creating the panel", ex);
-                panel.Controls.Add(new Label
+                try
                 {
-                    Dock = DockStyle.Fill,
-                    Text = "SpotiBee panel failed to load:\n" + ex.Message + "\n\nTools > SpotiBee: Save Diagnostics Report",
-                    TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
-                });
-                return 120;
+                    var view = new NowPlayingPanel(controller, skin, ShowSettings) { Dock = DockStyle.Fill };
+                    panel.Controls.Add(view);
+                }
+                catch (Exception ex)
+                {
+                    // Show the problem instead of leaving an empty panel
+                    Diagnostics.Log("Creating the panel", ex);
+                    panel.Controls.Add(new Label
+                    {
+                        Dock = DockStyle.Fill,
+                        Text = "SpotiBee panel failed to load:\n" + ex.Message + "\n\nTools > SpotiBee: Save Diagnostics Report",
+                        TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+                    });
+                }
             }
+
+            // When MusicBee restores a saved layout at startup it calls this from a background
+            // thread, but the host panel belongs to the UI thread and WinForms controls can only be
+            // parented on the thread that owns them. Build the panel over there instead.
+            var main = Control.FromHandle(mbApiInterface.MB_GetWindowHandle());
+            if (main != null && main.IsHandleCreated && main.InvokeRequired)
+            {
+                Diagnostics.Log("Panel requested from a background thread; creating it on the UI thread");
+                main.BeginInvoke((Action)Create);
+            }
+            else if (panel.IsHandleCreated && panel.InvokeRequired)
+            {
+                Diagnostics.Log("Panel requested from a background thread; creating it via the host panel");
+                panel.BeginInvoke((Action)Create);
+            }
+            else
+            {
+                Create();
+            }
+            return NowPlayingPanel.PreferredHeightForScreen();
         }
 
         //  menu shown when the panel header is clicked

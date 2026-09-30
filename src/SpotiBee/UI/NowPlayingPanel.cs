@@ -156,7 +156,16 @@ namespace SpotiBee.UI
         }
 
         /// <summary>The fixed height MusicBee should reserve for this panel.</summary>
-        public int PreferredHeight => S(212);
+        public int PreferredHeight => S(DesignHeight);
+
+        private const int DesignHeight = 212;
+
+        /// <summary>The panel height for the current screen DPI, without creating a panel.</summary>
+        public static int PreferredHeightForScreen()
+        {
+            using var g = Graphics.FromHwnd(IntPtr.Zero);
+            return (int)Math.Round(DesignHeight * g.DpiY / 96f);
+        }
 
         protected override void OnLayout(LayoutEventArgs e)
         {
