@@ -12,9 +12,9 @@ jobs:
     # but MusicBee is Windows-only, so build where it runs
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
 
@@ -22,7 +22,7 @@ jobs:
         run: dotnet build src/SpotiBee/SpotiBee.csproj -c Release
 
       - name: Upload plugin DLL
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mb_SpotiBee
           path: src/SpotiBee/bin/Release/net48/mb_SpotiBee.dll
