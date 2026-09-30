@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using SpotiBee.Library;
+using SpotiBee.Playback;
 using SpotiBee.Spotify;
 
 namespace SpotiBee
@@ -20,6 +21,7 @@ namespace SpotiBee
         private readonly HttpClient http;
         private SpotifyClient client;
         private PlaybackMonitor monitor;
+        private bool fastPolling;
 
         public SpotiBeeController(string settingsPath)
         {
@@ -44,6 +46,7 @@ namespace SpotiBee
         public event Action<PlaybackSnapshot> PlaybackUpdated;
         public event Action<Track> TrackChanged;
         public event Action<string> StatusMessage;
+        public event Action<Exception> PollFailed;
 
         /// <summary>Resume a saved session, if there is one.</summary>
         public void Start()
@@ -84,19 +87,27 @@ namespace SpotiBee
 
         // --- Commands ------------------------------------------------------
 
-        public Task PlayPauseAsync() => RunAsync(async c =>
-        {
-            if (LastSnapshot?.IsPlaying == true)
-                await c.PauseAsync();
-            else
-                await ResumeAsync(c);
-        });
+        // While MusicBee's queue is driving Spotify, transport acts on MusicBee so its queue stays in charge
 
-        public Task PlayAsync() => RunAsync(ResumeAsync);
-        public Task PauseAsync() => RunAsync(c => c.PauseAsync());
-        public Task NextAsync() => RunAsync(c => c.NextAsync());
-        public Task PreviousAsync() => RunAsync(c => c.PreviousAsync());
-        public Task SeekAsync(TimeSpan position) => RunAsync(c => c.SeekAsync((int)position.TotalMilliseconds));
+        public Task PlayPauseAsync()
+        {
+            if (Router?.IsDriving == true)
+                return Driving(Router.PlayPause);
+            return RunAsync(async c =>
+            {
+                if (LastSnapshot?.IsPlaying == true)
+                    await c.PauseAsync();
+                else
+                    await ResumeAsync(c);
+            });
+        }
+
+        public Task NextAsync() => Router?.IsDriving == true ? Driving(Router.Next) : RunAsync(c => c.NextAsync());
+        public Task PreviousAsync() => Router?.IsDriving == true ? Driving(Router.Previous) : RunAsync(c => c.PreviousAsync());
+
+        public Task SeekAsync(TimeSpan position) => Router?.IsDriving == true
+            ? Driving(() => Router.Seek((int)position.TotalMilliseconds))
+            : RunAsync(c => c.SeekAsync((int)position.TotalMilliseconds));
         public Task SetVolumeAsync(int percent) => RunAsync(c => c.SetVolumeAsync(percent));
 
         public Task ToggleShuffleAsync() => RunAsync(c => c.SetShuffleAsync(!(LastSnapshot?.State?.ShuffleState ?? false)));
@@ -136,6 +147,9 @@ namespace SpotiBee
             }
         }
 
+        /// <summary>Shows a message in the panel's status line.</summary>
+        public void ShowStatus(string message) => StatusMessage?.Invoke(message);
+
         public void OpenSpotifyApp()
         {
             try
@@ -146,6 +160,98 @@ namespace SpotiBee
             {
                 // Desktop app not installed; the web player works as a Connect device too
                 Process.Start(new ProcessStartInfo("https://open.spotify.com") { UseShellExecute = true });
+            }
+        }
+
+        // --- Playback routing ---------------------------------------------
+
+        /// <summary>Set by the plugin once MusicBee is ready; null before that.</summary>
+        public PlaybackRouter Router { get; internal set; }
+
+        private static Task Driving(Action action)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        /// <summary>Spotify commands for the router. These throw instead of reporting, so it can fail over.</summary>
+        internal ISpotifyPlayback RouterPlayback => new RouterSpotifyPlayback(this);
+
+        private sealed class RouterSpotifyPlayback : ISpotifyPlayback
+        {
+            private readonly SpotiBeeController owner;
+
+            public RouterSpotifyPlayback(SpotiBeeController owner)
+            {
+                this.owner = owner;
+            }
+
+            private SpotifyClient Client =>
+                owner.client ?? throw new SpotifyAuthException("Not connected to Spotify.");
+
+            private string DeviceId => owner.LastSnapshot?.State?.Device?.Id;
+
+            public bool IsConnected => owner.client != null;
+
+            public async Task PlayTrackAsync(string uri, int positionMs)
+            {
+                var c = Client;
+                var device = DeviceId;
+                if (device == null)
+                    device = (await owner.PickDeviceAsync(c))?.Id;
+                if (device == null)
+                    throw new SpotifyApiException(HttpStatusCode.NotFound, "No Spotify devices available", "NO_ACTIVE_DEVICE");
+                try
+                {
+                    await c.PlayUrisAsync(new[] { uri }, device, positionMs);
+                }
+                catch (SpotifyApiException ex) when (ex.IsNoActiveDevice)
+                {
+                    // The last-seen device went away; try whichever device is available now
+                    var fallback = await owner.PickDeviceAsync(c);
+                    if (fallback == null || fallback.Id == device)
+                        throw;
+                    await c.PlayUrisAsync(new[] { uri }, fallback.Id, positionMs);
+                }
+                owner.monitor?.RequestRefresh();
+            }
+
+            public async Task PauseAsync()
+            {
+                // Pausing something already paused is a 403 from Spotify; that's fine here
+                try { await Client.PauseAsync(); }
+                catch (SpotifyApiException ex) when (ex.StatusCode == HttpStatusCode.Forbidden) { }
+                owner.monitor?.RequestRefresh();
+            }
+
+            public async Task ResumeAsync()
+            {
+                try { await Client.PlayAsync(); }
+                catch (SpotifyApiException ex) when (ex.StatusCode == HttpStatusCode.Forbidden && ex.Reason != "PREMIUM_REQUIRED") { }
+                owner.monitor?.RequestRefresh();
+            }
+
+            public async Task SeekAsync(int positionMs)
+            {
+                await Client.SeekAsync(positionMs);
+                owner.monitor?.RequestRefresh();
+            }
+
+            public Task SetVolumeAsync(int percent) => Client.SetVolumeAsync(percent);
+
+            public async Task EnsureRepeatOffAsync()
+            {
+                // With a single track queued, Spotify's repeat would loop it instead of letting MusicBee advance
+                var repeat = owner.LastSnapshot?.State?.RepeatState;
+                if (repeat != null && repeat != "off")
+                    await Client.SetRepeatAsync("off");
+            }
+
+            public void SetFastPolling(bool fast)
+            {
+                owner.fastPolling = fast;
+                if (owner.monitor != null)
+                    owner.monitor.FastPolling = fast;
             }
         }
 
@@ -254,14 +360,18 @@ namespace SpotiBee
                 SaveSettings();
             };
 
-            monitor = new PlaybackMonitor(client);
+            monitor = new PlaybackMonitor(client) { FastPolling = fastPolling };
             monitor.StateUpdated += snapshot =>
             {
                 LastSnapshot = snapshot;
                 PlaybackUpdated?.Invoke(snapshot);
             };
             monitor.TrackChanged += track => TrackChanged?.Invoke(track);
-            monitor.PollFailed += Report;
+            monitor.PollFailed += ex =>
+            {
+                PollFailed?.Invoke(ex);
+                Report(ex);
+            };
             monitor.Start();
 
             ConnectionChanged?.Invoke();

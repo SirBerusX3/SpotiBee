@@ -2,12 +2,13 @@
 
 A MusicBee plugin that bridges MusicBee and Spotify.
 
-**Status: phase 2**: Spotify login, now-playing panel, controls, and playlist import.
+**Status: phase 3**: Spotify login, now-playing panel, controls, playlist import, and
+playing Spotify tracks from MusicBee's queue.
 
 Planned:
 1. ~~Connect + now playing + controls~~
 2. ~~Import Spotify playlists into MusicBee as placeholder tracks~~
-3. Play placeholder tracks through Spotify, kept in sync with MusicBee's player
+3. ~~Play placeholder tracks through Spotify, kept in sync with MusicBee's player~~
 4. Lyrics for Spotify tracks via MusicBee's lyrics system
 5. Two-way playlist sync, search, "add to playlist" from the panel
 
@@ -72,7 +73,36 @@ Spotify limits (Development Mode apps, since February 2026):
 - Liked Songs can be imported.
 - Podcast episodes and Spotify "local files" without a match in your library are skipped.
 
-Placeholders don't produce sound yet. Playing them through Spotify is phase 3.
+## Playing Spotify tracks from MusicBee
+
+Play imported playlists in MusicBee as normal. For each track, SpotiBee decides where the sound
+comes from, based on the **playback mode**. Change the mode with the button next to the device
+picker, from the panel header menu, or with the "SpotiBee: Switch Playback Mode" hotkey.
+
+| Mode | Tracks you have locally | Spotify-only tracks |
+|---|---|---|
+| **Local first** (default) | Play in MusicBee | Play through Spotify |
+| **Spotify first** | Play through Spotify; your file takes over if Spotify drops out | Play through Spotify |
+| **Local only** | Play in MusicBee | Skipped |
+
+While a track plays through Spotify, MusicBee keeps "playing" it silently as a clock, so the
+queue, progress bar and play counts behave normally. The panel shows **MusicBee → Spotify**.
+
+- **Pause, resume and seek** in MusicBee are mirrored to Spotify, and pause/resume in the
+  Spotify app is mirrored back.
+- **Volume:** MusicBee's slider sets Spotify's volume, and changing it in the Spotify app moves the
+  slider. Some devices (certain phones and speakers) don't allow remote volume.
+- **Picking something else in the Spotify app** hands control over: MusicBee pauses and the
+  panel shows *Spotify app in control*. Press play in MusicBee to take it back.
+- **Losing Spotify** (no connection, device gone, playback stalled): a track you have locally
+  carries on from your file at the same point, and a Spotify-only track is skipped. Spotify
+  is retried after a minute.
+- **Scrobbling:** Spotify scrobbles its own plays if it's linked to Last.fm, so SpotiBee turns
+  MusicBee's *Scrobble* toggle off while a Spotify track plays and back on afterwards. Your
+  Last.fm connection isn't touched. You can turn this off in settings.
+- **In Spotify first mode**, SpotiBee mutes MusicBee while Spotify plays one of your own files.
+  Unmuting switches that track back to your file. SpotiBee never unmutes a mute you set yourself.
+- If MusicBee closes unexpectedly, any mute or scrobble change is undone the next time it starts.
 
 ## Where things are stored
 
@@ -105,6 +135,7 @@ src/SpotiBee/
   PluginSettings.cs       Persisted settings (DPAPI-protected refresh token)
   Spotify/                Web API client, PKCE auth, playback polling, JSON models
   Library/                Playlist import, local matching, placeholder files, track store
+  Playback/               Routing each track to MusicBee or Spotify and keeping them in sync
   UI/                     Dockable now-playing panel, settings window, skin colours
   MusicBeeInterface.cs    MusicBee plugin API (copied unmodified from the SDK)
 MusicBee plugin API/      Original MusicBee SDK samples, for reference

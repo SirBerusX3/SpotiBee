@@ -32,8 +32,11 @@ namespace SpotiBee.Library
 
         public string Root => root;
 
-        public bool IsPlaceholderPath(string path) =>
-            !string.IsNullOrEmpty(path) && path.StartsWith(root.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
+        public bool IsPlaceholderPath(string path) => IsUnder(path, root);
+
+        public static bool IsUnder(string path, string folder) =>
+            !string.IsNullOrEmpty(path) && !string.IsNullOrEmpty(folder) &&
+            path.StartsWith(folder.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
 
         public async Task<string> CreateAsync(Track track, CancellationToken ct)
         {

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using SpotiBee.Playback;
 using SpotiBee.Spotify;
 
 namespace SpotiBee.UI
@@ -32,6 +33,8 @@ namespace SpotiBee.UI
         private readonly Button shuffle, previous, playPause, next, repeat;
         private readonly ComboBox devices = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
         private readonly Label status = new Label { AutoEllipsis = true };
+        private readonly Label source = new Label { TextAlign = ContentAlignment.MiddleCenter, AutoEllipsis = true };
+        private readonly Button mode = new Button { FlatStyle = FlatStyle.Flat, TabStop = false, Cursor = Cursors.Hand, UseMnemonic = false };
         private readonly Panel disconnected = new Panel();
         private readonly Label disconnectedText = new Label { TextAlign = ContentAlignment.MiddleCenter };
         private readonly Button connectButton = new Button { Text = "Connect to Spotify…", AutoSize = true };
@@ -85,6 +88,22 @@ namespace SpotiBee.UI
             tips.SetToolTip(title, "Open in Spotify");
             tips.SetToolTip(devices, "Spotify device");
 
+            source.ForeColor = skin.Dim;
+            source.Font = elapsed.Font;
+            mode.Font = elapsed.Font;
+            mode.ForeColor = skin.Foreground;
+            mode.BackColor = skin.Background;
+            mode.FlatAppearance.BorderColor = skin.Track;
+            mode.FlatAppearance.MouseOverBackColor = skin.Track;
+            mode.Click += (s, e) => controller.Router?.CycleMode();
+            tips.SetToolTip(mode,
+                "Playback mode (click to change)\n" +
+                "Local first: your files play in MusicBee, Spotify-only tracks play through Spotify\n" +
+                "Spotify first: everything Spotify has plays through Spotify, your files are the fallback\n" +
+                "Local only: never use Spotify; Spotify-only tracks are skipped");
+            if (controller.Router != null)
+                controller.Router.StateChanged += OnRouterStateChanged;
+
             title.Click += (s, e) => OpenInSpotify(snapshot?.State?.Item?.Uri);
             seekBar.SeekRequested += fraction =>
             {
@@ -110,7 +129,7 @@ namespace SpotiBee.UI
             Controls.AddRange(new Control[]
             {
                 disconnected, artwork, title, artist, album, seekBar, elapsed, duration,
-                shuffle, previous, playPause, next, repeat, devices, status,
+                shuffle, previous, playPause, next, repeat, devices, mode, source, status,
             });
 
             ticker.Tick += (s, e) => UpdateProgress();
@@ -127,6 +146,7 @@ namespace SpotiBee.UI
                 ShowNothingPlaying();
             ticker.Start();
             initialised = true;
+            UpdateRouteDisplay();
             PerformLayout();
         }
 
@@ -158,6 +178,7 @@ namespace SpotiBee.UI
             var timeWidth = S(60);
             elapsed.Bounds = new Rectangle(pad, seekBar.Bottom, timeWidth, S(16));
             duration.Bounds = new Rectangle(width - pad - timeWidth, seekBar.Bottom, timeWidth, S(16));
+            source.Bounds = new Rectangle(elapsed.Right, seekBar.Bottom, Math.Max(0, duration.Left - elapsed.Right), S(16));
 
             var small = S(32);
             var large = S(40);
@@ -172,13 +193,42 @@ namespace SpotiBee.UI
                 x += size + gap;
             }
 
-            devices.Bounds = new Rectangle(pad, rowTop + large + S(6), Math.Max(0, width - pad * 2), devices.Height);
+            var modeWidth = S(92);
+            var comboTop = rowTop + large + S(6);
+            devices.Bounds = new Rectangle(pad, comboTop, Math.Max(0, width - pad * 3 - modeWidth), devices.Height);
+            mode.Bounds = new Rectangle(devices.Right + pad, comboTop, modeWidth, devices.Height);
             status.Bounds = new Rectangle(pad, devices.Bottom + S(4), Math.Max(0, width - pad * 2), S(16));
         }
 
         // --- Controller events (may arrive on background threads) ---------
 
         private void OnConnectionChanged() => Ui(ShowConnectionState);
+        private void OnRouterStateChanged() => Ui(UpdateRouteDisplay);
+
+        private void UpdateRouteDisplay()
+        {
+            var router = controller.Router;
+            if (router == null)
+                return;
+            mode.Text = PlaybackRouter.Describe(router.Mode);
+            switch (router.Route)
+            {
+                case PlaybackRoute.Spotify:
+                    source.Text = "MusicBee → Spotify";
+                    source.ForeColor = skin.Accent;
+                    tips.SetToolTip(source, "MusicBee's queue is playing this track through Spotify");
+                    break;
+                case PlaybackRoute.HandedOver:
+                    source.Text = "Spotify app in control";
+                    source.ForeColor = skin.Dim;
+                    tips.SetToolTip(source, "Press play in MusicBee to take control back");
+                    break;
+                default:
+                    source.Text = "";
+                    tips.SetToolTip(source, null);
+                    break;
+            }
+        }
         private void OnPlaybackUpdated(PlaybackSnapshot s) => Ui(() => ApplySnapshot(s));
         private void OnStatusMessage(string message) => Ui(() =>
         {
@@ -414,6 +464,8 @@ namespace SpotiBee.UI
                 controller.ConnectionChanged -= OnConnectionChanged;
                 controller.PlaybackUpdated -= OnPlaybackUpdated;
                 controller.StatusMessage -= OnStatusMessage;
+                if (controller.Router != null)
+                    controller.Router.StateChanged -= OnRouterStateChanged;
                 ticker.Dispose();
                 statusClear.Dispose();
                 tips.Dispose();

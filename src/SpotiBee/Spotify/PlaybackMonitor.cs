@@ -39,6 +39,9 @@ namespace SpotiBee.Spotify
 
         public bool IsRunning => stop != null;
 
+        /// <summary>Poll every second while playing, for tighter sync when MusicBee is driving Spotify.</summary>
+        public bool FastPolling { get; set; }
+
         public void Start()
         {
             if (stop != null)
@@ -82,7 +85,9 @@ namespace SpotiBee.Spotify
                     }
                     StateUpdated?.Invoke(snapshot);
 
-                    delay = state != null && state.IsPlaying ? PlayingInterval : IdleInterval;
+                    delay = state != null && state.IsPlaying
+                        ? (FastPolling ? MinInterval : PlayingInterval)
+                        : IdleInterval;
 
                     // Poll just after the track should end so track changes show up promptly
                     var remaining = snapshot.Remaining;

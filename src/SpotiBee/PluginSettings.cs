@@ -28,6 +28,16 @@ namespace SpotiBee
         public string EffectivePlaceholderFolder =>
             string.IsNullOrWhiteSpace(PlaceholderFolder) ? DefaultPlaceholderFolder : PlaceholderFolder;
 
+        /// <summary>A Playback.PlaybackMode value; 0 (Local first) by default.</summary>
+        [DataMember] public int PlaybackMode { get; set; }
+
+        /// <summary>Off by default, so MusicBee doesn't scrobble tracks Spotify is already scrobbling.</summary>
+        [DataMember] public bool AllowMusicBeeScrobblesForSpotify { get; set; }
+
+        // Changes SpotiBee made to MusicBee's player, persisted so they can be undone after a crash
+        [DataMember] public bool ScrobbleSuppressedBySpotiBee { get; set; }
+        [DataMember] public bool MuteAppliedBySpotiBee { get; set; }
+
         [IgnoreDataMember] public string FilePath { get; private set; }
 
         [IgnoreDataMember]
