@@ -10,7 +10,7 @@ Planned:
 1. ~~Connect + now playing + controls~~
 2. ~~Import Spotify playlists into MusicBee as placeholder tracks~~
 3. ~~Play placeholder tracks through Spotify, kept in sync with MusicBee's player~~
-4. Lyrics for Spotify tracks via MusicBee's lyrics system
+4. ~~Lyrics for Spotify tracks via MusicBee's lyrics system~~ (works automatically: placeholders are real library files)
 5. ~~Two-way playlist sync, send MusicBee playlists to Spotify~~; next: search and add from the panel, library tidy-up
 
 Audio always plays through a Spotify client (desktop app, web player, phone or speaker).
