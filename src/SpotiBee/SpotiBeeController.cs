@@ -27,7 +27,8 @@ namespace SpotiBee
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("SpotiBee/0.1 (MusicBee plugin)");
+            var version = typeof(SpotiBeeController).Assembly.GetName().Version.ToString(3);
+            http.DefaultRequestHeaders.UserAgent.ParseAdd($"SpotiBee/{version} (MusicBee plugin)");
             Settings = PluginSettings.Load(settingsPath);
             Store = new TrackStore(Path.Combine(Path.GetDirectoryName(settingsPath), "library.json"));
         }

@@ -4,7 +4,9 @@ All notable changes to SpotiBee are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may change behaviour.
 
-## [Unreleased] – 0.4.0
+## [Unreleased]
+
+## [0.4.0] – 2026-09-30
 
 ### Added
 - **Two-way playlist sync.** Imported playlists, and playlists sent from MusicBee, stay linked.
@@ -34,6 +36,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Re-importing an already linked playlist now syncs it instead of overwriting MusicBee-side edits.
 - Auto-playlists sync one way only (MusicBee → Spotify).
 - Deleting a playlist on one side unlinks it and leaves the other side untouched.
+- The version MusicBee shows for the plugin now always matches the release (it was stuck at 0.3).
 - Local files that Spotify doesn't have aren't searched for again for a week, or until matching
   improves in an update.
 - **Better matching of local files to Spotify.** In testing, this recovers most of the tracks
@@ -134,7 +137,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - No third-party DLLs, only .NET Framework assemblies, so SpotiBee can't clash with other
   MusicBee plugins.
 
-[Unreleased]: #unreleased--040
+[Unreleased]: #unreleased
+[0.4.0]: #040--2026-09-30
 [0.3.1]: #031--2026-09-30
 [0.3.0]: #030--2026-09-30
 [0.2.0]: #020--2026-09-30

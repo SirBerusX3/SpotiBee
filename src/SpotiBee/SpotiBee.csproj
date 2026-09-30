@@ -9,7 +9,8 @@
     <LangVersion>latest</LangVersion>
     <Nullable>disable</Nullable>
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <Version>0.1.0</Version>
+    <!-- The single source of the version: the plugin reads it from the built assembly -->
+    <Version>0.4.0</Version>
     <Product>SpotiBee</Product>
     <Description>Spotify bridge for MusicBee</Description>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

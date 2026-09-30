@@ -41,9 +41,11 @@ namespace MusicBeePlugin
             about.Author = "SpotiBee";
             about.TargetApplication = PluginName;   // header text of the dockable panel
             about.Type = PluginType.PanelView;
-            about.VersionMajor = 0;
-            about.VersionMinor = 3;
-            about.Revision = 0;
+            // Version comes from <Version> in SpotiBee.csproj
+            var version = typeof(Plugin).Assembly.GetName().Version;
+            about.VersionMajor = (short)version.Major;
+            about.VersionMinor = (short)version.Minor;
+            about.Revision = (short)version.Build;
             about.MinInterfaceVersion = MinInterfaceVersion;
             about.MinApiRevision = MinApiRevision;
             about.ReceiveNotifications = ReceiveNotificationFlags.PlayerEvents;
@@ -51,7 +53,7 @@ namespace MusicBeePlugin
 
             var trace = mbApiInterface.MB_Trace;
             Diagnostics.Sink = trace == null ? (Action<string>)null : message => trace(message);
-            Diagnostics.Log($"Initialise (v{about.VersionMajor}.{about.VersionMinor}, MusicBee API {mbApiInterface.ApiRevision})");
+            Diagnostics.Log($"Initialise (v{version.ToString(3)}, MusicBee API {mbApiInterface.ApiRevision})");
 
             storageDir = Path.Combine(mbApiInterface.Setting_GetPersistentStoragePath(), PluginName);
             controller = new SpotiBeeController(Path.Combine(storageDir, "settings.json"));
@@ -282,7 +284,7 @@ namespace MusicBeePlugin
         private void SaveDiagnostics()
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"SpotiBee {about.VersionMajor}.{about.VersionMinor} diagnostics, {DateTime.Now}");
+            sb.AppendLine($"SpotiBee {typeof(Plugin).Assembly.GetName().Version.ToString(3)} diagnostics, {DateTime.Now}");
             sb.AppendLine($"MusicBee API revision {mbApiInterface.ApiRevision}, {Environment.OSVersion}, {(Environment.Is64BitProcess ? "64" : "32")}-bit");
             sb.AppendLine($"Connected={controller?.IsConnected} User={controller?.User?.DisplayName ?? "(unknown)"}");
             sb.AppendLine($"Mode={router?.Mode} Route={router?.Route}");
