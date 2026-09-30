@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <OutputType>Library</OutputType>
+    <!-- MusicBee only loads plugin DLLs whose name starts with mb_ -->
+    <AssemblyName>mb_SpotiBee</AssemblyName>
+    <RootNamespace>MusicBeePlugin</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Version>0.1.0</Version>
+    <Product>SpotiBee</Product>
+    <Description>Spotify bridge for MusicBee</Description>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- `dotnet build -p:DeployToMusicBee=true` copies the plugin into MusicBee's user plugin folder.
+         MusicBee must be closed, otherwise the DLL is locked. -->
+    <MusicBeePluginsDir Condition="'$(MusicBeePluginsDir)' == ''">$(APPDATA)\MusicBee\Plugins</MusicBeePluginsDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Lets the .NET SDK build .NET Framework 4.8 without Visual Studio's targeting pack -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Framework assemblies only: no third-party DLLs to clash with other MusicBee plugins -->
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Security" />
+  </ItemGroup>
+
+  <Target Name="DeployToMusicBee" AfterTargets="Build" Condition="'$(DeployToMusicBee)' == 'true'">
+    <Copy SourceFiles="$(TargetPath);$(TargetDir)$(TargetName).pdb" DestinationFolder="$(MusicBeePluginsDir)" />
+    <Message Importance="high" Text="SpotiBee deployed to $(MusicBeePluginsDir)" />
+  </Target>
+
+</Project>
