@@ -109,6 +109,47 @@ namespace SpotiBee.Library
             }
         }
 
+        /// <summary>Local files that were searched for on Spotify without a match.</summary>
+        public IReadOnlyList<string> UnmatchedPaths
+        {
+            get
+            {
+                lock (sync)
+                    return unmatched.Keys.ToList();
+            }
+        }
+
+        /// <summary>
+        /// Records the user's own choice of Spotify track for a local file. Pinned pairings are
+        /// never replaced by automatic matching.
+        /// </summary>
+        public TrackRecord PinMatch(string file, Spotify.Track track, bool lengthDiffers)
+        {
+            lock (sync)
+            {
+                // A file can only stand for one Spotify track
+                foreach (var other in tracks.Values.Where(t => string.Equals(t.LocalPath, file, StringComparison.OrdinalIgnoreCase)))
+                {
+                    other.LocalPath = null;
+                    other.LocalPathPinned = false;
+                }
+                if (!tracks.TryGetValue(track.Id, out var record))
+                    tracks[track.Id] = record = new TrackRecord { SpotifyId = track.Id };
+                record.Uri = track.Uri;
+                record.Title = track.Name;
+                record.Artist = track.ArtistNames;
+                record.Album = track.AlbumName;
+                record.DurationMs = track.DurationMs;
+                record.Isrc = track.ExternalIds?.Isrc;
+                record.LocalPath = file;
+                record.LocalPathPinned = true;
+                record.LocalLengthDiffers = lengthDiffers;
+                unmatched.Remove(file);
+                byPath = null;
+                return record;
+            }
+        }
+
         public IReadOnlyList<PlaylistRecord> Playlists
         {
             get

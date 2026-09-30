@@ -108,6 +108,10 @@ looked up in Spotify's catalogue by title and artist, and the length must agree 
   Spotify returned for each miss are in the diagnostics report.
 - Files Spotify didn't have aren't searched again for a week, or until matching improves in an
   update.
+- **Match by hand:** Tools → SpotiBee: Tracks Not Found on Spotify… (or *Match missing tracks…*
+  in the Send window) lists the misses. Choose one to search Spotify, with results showing how
+  each length compares to your file; the closest is preselected. Your choice is added to every
+  synced playlist containing that file, and automatic matching never overrides it.
 - **Auto-playlists** sync one way only (MusicBee → Spotify), since their contents come from a
   filter.
 - Deleting the MusicBee playlist unlinks it but leaves the Spotify playlist alone, and vice versa.

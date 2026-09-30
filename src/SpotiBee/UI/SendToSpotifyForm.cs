@@ -37,6 +37,7 @@ namespace SpotiBee.UI
         private readonly ProgressBar progressBar = new ProgressBar { Dock = DockStyle.Top, Height = 6, Style = ProgressBarStyle.Continuous };
         private readonly Label status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
         private readonly Button send = new Button { Text = "Send to Spotify", AutoSize = true, Enabled = false };
+        private readonly Button matchMissing = new Button { Text = "Match missing tracks…", AutoSize = true, Visible = false };
         private readonly Button close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel };
         private CancellationTokenSource running;
 
@@ -79,8 +80,14 @@ namespace SpotiBee.UI
 
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(0, 8, 0, 0) };
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, WrapContents = false };
+            buttons.Controls.Add(matchMissing);
             buttons.Controls.Add(send);
             buttons.Controls.Add(close);
+            matchMissing.Click += (s, e) =>
+            {
+                using var form = new UnmatchedTracksForm(controller, musicBee, scheduler);
+                form.ShowDialog(this);
+            };
             bottom.Controls.Add(status);
             bottom.Controls.Add(buttons);
             bottom.Controls.Add(progressBar);
@@ -201,8 +208,10 @@ namespace SpotiBee.UI
 
             if (unmatched.Count > 0)
             {
-                details.Text = "Not found on Spotify (kept in MusicBee only):\r\n" + string.Join("\r\n", unmatched);
+                details.Text = "Not found on Spotify (kept in MusicBee only). Use \"Match missing tracks…\" to pick one by hand:\r\n" +
+                               string.Join("\r\n", unmatched);
                 details.Visible = true;
+                matchMissing.Visible = true;
             }
         }
 

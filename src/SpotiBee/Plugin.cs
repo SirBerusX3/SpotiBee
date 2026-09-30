@@ -269,6 +269,7 @@ namespace MusicBeePlugin
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Import Spotify Playlists…", null, (s, e) => ShowImport());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Send Playlists to Spotify…", null, (s, e) => ShowSendToSpotify());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Sync Playlists Now", "SpotiBee: Sync Playlists Now", (s, e) => SyncNow());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Tracks Not Found on Spotify…", null, (s, e) => ShowUnmatched());
 
             // A hotkey description makes the command assignable in Preferences > Hotkeys
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Play or Pause", "SpotiBee: Play/Pause", async (s, e) => await controller.PlayPauseAsync());
@@ -336,6 +337,17 @@ namespace MusicBeePlugin
                 return;
             }
             using var form = new SendToSpotifyForm(controller, library, playlistSync);
+            form.ShowDialog(MainWindow);
+        }
+
+        private void ShowUnmatched()
+        {
+            if (!controller.IsConnected || playlistSync == null)
+            {
+                ShowSettings();
+                return;
+            }
+            using var form = new UnmatchedTracksForm(controller, library, playlistSync);
             form.ShowDialog(MainWindow);
         }
 
