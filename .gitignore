@@ -3,3 +3,6 @@ obj/
 .vs/
 *.user
 *.suo
+
+# The MusicBee plugin SDK samples (kept locally for reference; SpotiBee ships its own MusicBeeInterface.cs)
+MusicBee plugin API/

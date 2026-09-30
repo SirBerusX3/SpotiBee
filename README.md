@@ -211,10 +211,22 @@ src/SpotiBee/
   Spotify/                Web API client, PKCE auth, playback polling, JSON models
   Library/                Playlist import, local matching, placeholder files, track store
   Playback/               Routing each track to MusicBee or Spotify and keeping them in sync
-  UI/                     Dockable now-playing panel, settings window, skin colours
+  UI/                     Panel, search, import/send/sync windows, settings, skin colours
+  SyncScheduler.cs        When linked playlists sync
   MusicBeeInterface.cs    MusicBee plugin API (copied unmodified from the SDK)
-MusicBee plugin API/      Original MusicBee SDK samples, for reference
 ```
 
 Only .NET Framework assemblies are used (no Newtonsoft etc.), so SpotiBee can't clash with
 DLL versions loaded by other MusicBee plugins.
+
+The version number lives only in `src/SpotiBee/SpotiBee.csproj` (`<Version>`); the plugin info
+MusicBee shows is read from the built DLL. Every push is built by GitHub Actions, and each run's
+`mb_SpotiBee.dll` can be downloaded from the run's page.
+
+## Licence and credits
+
+SpotiBee is released under the [MIT licence](LICENSE).
+
+`MusicBeeInterface.cs` comes from the [MusicBee plugin SDK](https://www.getmusicbee.com/help/api/)
+by Steven Mayall and is included unmodified, as MusicBee plugins normally do. SpotiBee isn't
+affiliated with or endorsed by MusicBee or Spotify. Spotify is a trademark of Spotify AB.
