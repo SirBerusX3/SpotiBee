@@ -17,7 +17,7 @@ namespace SpotiBee.Library
         private Dictionary<string, TrackRecord> tracks = new Dictionary<string, TrackRecord>(StringComparer.Ordinal);
         private Dictionary<string, PlaylistRecord> playlists = new Dictionary<string, PlaylistRecord>(StringComparer.Ordinal);
         private Dictionary<string, TrackRecord> byPath;
-        private readonly Dictionary<string, DateTime> unmatched = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, (DateTime When, int Version)> unmatched = new Dictionary<string, (DateTime, int)>(StringComparer.OrdinalIgnoreCase);
 
         public TrackStore(string filePath)
         {
@@ -92,18 +92,18 @@ namespace SpotiBee.Library
         }
 
         /// <summary>True if this local file was searched for on Spotify recently without a match.</summary>
-        public bool WasRecentlyUnmatched(string path, TimeSpan within)
+        public bool WasRecentlyUnmatched(string path, TimeSpan within, int matcherVersion)
         {
             lock (sync)
-                return unmatched.TryGetValue(path, out var when) && DateTime.UtcNow - when < within;
+                return unmatched.TryGetValue(path, out var u) && u.Version >= matcherVersion && DateTime.UtcNow - u.When < within;
         }
 
-        public void SetUnmatched(string path, bool isUnmatched)
+        public void SetUnmatched(string path, bool isUnmatched, int matcherVersion)
         {
             lock (sync)
             {
                 if (isUnmatched)
-                    unmatched[path] = DateTime.UtcNow;
+                    unmatched[path] = (DateTime.UtcNow, matcherVersion);
                 else
                     unmatched.Remove(path);
             }
@@ -134,7 +134,7 @@ namespace SpotiBee.Library
                     Version = 1,
                     Tracks = tracks.Values.ToList(),
                     Playlists = playlists.Values.ToList(),
-                    Unmatched = unmatched.Select(u => new UnmatchedFile { Path = u.Key, CheckedUtc = u.Value }).ToList(),
+                    Unmatched = unmatched.Select(u => new UnmatchedFile { Path = u.Key, CheckedUtc = u.Value.When, MatcherVersion = u.Value.Version }).ToList(),
                 };
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath));
@@ -158,7 +158,7 @@ namespace SpotiBee.Library
                     playlists[p.SpotifyId] = p;
             foreach (var u in data.Unmatched ?? new List<UnmatchedFile>())
                 if (!string.IsNullOrEmpty(u.Path))
-                    unmatched[u.Path] = u.CheckedUtc;
+                    unmatched[u.Path] = (u.CheckedUtc, u.MatcherVersion);
         }
 
         [DataContract]
@@ -175,6 +175,7 @@ namespace SpotiBee.Library
         {
             [DataMember] public string Path { get; set; }
             [DataMember] public DateTime CheckedUtc { get; set; }
+            [DataMember] public int MatcherVersion { get; set; }
         }
     }
 
@@ -194,6 +195,12 @@ namespace SpotiBee.Library
 
         /// <summary>The user's own copy of this track, if one was found.</summary>
         [DataMember] public string LocalPath { get; set; }
+
+        /// <summary>
+        /// The local file is a different edit of this track (lengths differ by more than a few seconds),
+        /// so it can't stand in as the clock while Spotify plays the track.
+        /// </summary>
+        [DataMember] public bool LocalLengthDiffers { get; set; }
 
         /// <summary>True when the user chose the local file by hand; automatic matching won't override it.</summary>
         [DataMember] public bool LocalPathPinned { get; set; }

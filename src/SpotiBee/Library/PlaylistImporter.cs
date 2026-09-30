@@ -198,7 +198,18 @@ namespace SpotiBee.Library
                 UpdateMetadata(record, track);
 
                 if (!record.LocalPathPinned)
-                    record.LocalPath = matcher.Match(track)?.Path ?? KeepIfStillPresent(record.LocalPath);
+                {
+                    var exact = matcher.Match(track)?.Path;
+                    if (exact != null)
+                    {
+                        record.LocalPath = exact;
+                        record.LocalLengthDiffers = false;
+                    }
+                    else
+                    {
+                        record.LocalPath = KeepIfStillPresent(record.LocalPath);
+                    }
+                }
                 if (!string.IsNullOrEmpty(record.LocalPath) && !File.Exists(record.LocalPath))
                     record.LocalPath = null;
 

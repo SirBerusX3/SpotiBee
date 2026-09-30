@@ -18,6 +18,9 @@ namespace SpotiBee.Library
         /// <summary>Don't search again for a file Spotify didn't have until this long has passed.</summary>
         private static readonly TimeSpan UnmatchedRetry = TimeSpan.FromDays(7);
 
+        /// <summary>Bumped when matching improves, so earlier misses are searched again.</summary>
+        internal const int MatcherVersion = 2;
+
         private readonly ISpotifySearch spotify;
         private readonly IMusicBeeLibrary musicBee;
         private readonly TrackStore store;
@@ -43,17 +46,17 @@ namespace SpotiBee.Library
             if (uri != null)
                 return IdFromUri(uri);
 
-            if (store.WasRecentlyUnmatched(file, UnmatchedRetry))
+            if (store.WasRecentlyUnmatched(file, UnmatchedRetry, MatcherVersion))
                 return null;
 
             var local = musicBee.GetTrack(file);
             if (local == null || string.IsNullOrWhiteSpace(local.Title))
                 return null;
 
-            var match = await SearchAsync(local, ct);
+            var (match, lengthDiffers) = await SearchAsync(local, ct);
             if (match == null)
             {
-                store.SetUnmatched(file, true);
+                store.SetUnmatched(file, true, MatcherVersion);
                 return null;
             }
 
@@ -66,38 +69,95 @@ namespace SpotiBee.Library
             record.DurationMs = match.DurationMs;
             record.Isrc = match.ExternalIds?.Isrc;
             if (!record.LocalPathPinned)
+            {
                 record.LocalPath = file;
-            store.SetUnmatched(file, false);
+                record.LocalLengthDiffers = lengthDiffers;
+            }
+            store.SetUnmatched(file, false, MatcherVersion);
             store.InvalidatePathIndex();
             return match.Id;
         }
 
-        private async Task<Track> SearchAsync(LocalTrack local, CancellationToken ct)
+        /// <summary>Same recording: lengths agree this closely.</summary>
+        internal static readonly TimeSpan ExactLength = TimeSpan.FromSeconds(4);
+
+        /// <summary>
+        /// Same song, different edit (compilation versions are often trimmed or faded early):
+        /// good enough for a playlist, but not for using the local file as Spotify's clock.
+        /// </summary>
+        internal static TimeSpan CloseLength(TimeSpan length) =>
+            TimeSpan.FromSeconds(Math.Max(25, length.TotalSeconds * 0.12));
+
+        private async Task<(Track Track, bool LengthDiffers)> SearchAsync(LocalTrack local, CancellationToken ct)
         {
-            var title = LocalMatcher.CleanTitle(local.Title);
-            var artist = LocalMatcher.FirstArtist(string.IsNullOrWhiteSpace(local.Artist) ? local.AlbumArtist : local.Artist);
-            // A matcher over just this one file answers "is this Spotify track that file?"
-            var matcher = new LocalMatcher(new[] { local });
+            var titles = LocalMatcher.TitleVariants(local.Title).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            var titleKeys = new HashSet<string>(titles.Select(LocalMatcher.NormalizeTitle).Where(k => k.Length > 0));
+            var artists = new[] { local.Artist, local.AlbumArtist }.Where(a => !string.IsNullOrWhiteSpace(a)).ToList();
+            var artist = LocalMatcher.SearchArtist(artists.FirstOrDefault() ?? "");
 
             var queries = new List<string>();
-            if (artist.Length > 0)
-                queries.Add($"track:\"{Quote(title)}\" artist:\"{Quote(artist)}\"");
-            queries.Add((artist + " " + title).Trim());
+            foreach (var title in titles)
+                if (artist.Length > 0)
+                    queries.Add($"track:\"{Quote(title)}\" artist:\"{Quote(artist)}\"");
+            foreach (var title in titles)
+                queries.Add((artist + " " + title).Trim());
+            // Last resort for artist tags Spotify spells differently; the artist check below still applies
+            queries.Add($"track:\"{Quote(titles.FirstOrDefault() ?? local.Title)}\"");
 
+            var seen = new List<Track>();
             foreach (var query in queries.Distinct())
             {
                 var candidates = await spotify.SearchTracksAsync(query, 10, ct);
-                var matching = candidates.Where(c => c.Id != null && matcher.Match(c) != null).ToList();
-                if (matching.Count == 0)
-                    continue;
-                // Prefer the same album, then the closest length
-                var album = LocalMatcher.NormalizeTitle(local.Album);
-                return matching
-                    .OrderByDescending(c => album.Length > 0 && LocalMatcher.NormalizeTitle(c.Album?.Name) == album)
-                    .ThenBy(c => local.Duration.HasValue ? Math.Abs(c.DurationMs - local.Duration.Value.TotalMilliseconds) : 0)
-                    .First();
+                seen.AddRange(candidates.Where(c => c?.Id != null && seen.All(s => s.Id != c.Id)));
+                var best = Best(local, titleKeys, artists, candidates);
+                if (best.Track != null && !best.LengthDiffers)
+                    return best;
+                if (best.Track != null)
+                {
+                    // Keep looking for an exact-length version, but remember this one
+                    var exact = await FindExactAsync(local, titleKeys, artists, queries.Skip(queries.IndexOf(query) + 1), seen, ct);
+                    return exact ?? best;
+                }
+            }
+
+            Diagnostics.Log($"No Spotify match for \"{local.Artist} – {local.Title}\" ({local.Duration:m\\:ss}). " +
+                            "Closest results: " + (seen.Count == 0 ? "none" : string.Join("; ", seen.Take(5).Select(s =>
+                                $"{s.ArtistNames} – {s.Name} ({TimeSpan.FromMilliseconds(s.DurationMs):m\\:ss})"))));
+            return (null, false);
+        }
+
+        private async Task<(Track, bool)?> FindExactAsync(LocalTrack local, HashSet<string> titleKeys, List<string> artists,
+            IEnumerable<string> remainingQueries, List<Track> seen, CancellationToken ct)
+        {
+            foreach (var query in remainingQueries.Distinct().Take(2))
+            {
+                var candidates = await spotify.SearchTracksAsync(query, 10, ct);
+                seen.AddRange(candidates.Where(c => c?.Id != null && seen.All(s => s.Id != c.Id)));
+                var best = Best(local, titleKeys, artists, candidates);
+                if (best.Track != null && !best.LengthDiffers)
+                    return best;
             }
             return null;
+        }
+
+        /// <summary>The best candidate: same title and artist, exact length before close length, then same album, then nearest length.</summary>
+        internal static (Track Track, bool LengthDiffers) Best(LocalTrack local, HashSet<string> titleKeys,
+            IList<string> localArtists, IEnumerable<Track> candidates)
+        {
+            var album = LocalMatcher.NormalizeTitle(local.Album);
+            var scored = candidates
+                .Where(c => c?.Id != null && c.IsTrack && !c.IsLocal)
+                .Where(c => titleKeys.Contains(LocalMatcher.NormalizeTitle(c.Name)))
+                .Where(c => LocalMatcher.ArtistsMatch(localArtists, (c.Artists ?? new Artist[0]).Select(a => a.Name)))
+                .Select(c => (Track: c, Diff: local.Duration.HasValue
+                    ? (TimeSpan.FromMilliseconds(c.DurationMs) - local.Duration.Value).Duration()
+                    : TimeSpan.Zero))
+                .Where(x => !local.Duration.HasValue || x.Diff <= CloseLength(local.Duration.Value))
+                .OrderByDescending(x => x.Diff <= ExactLength)
+                .ThenByDescending(x => album.Length > 0 && LocalMatcher.NormalizeTitle(x.Track.Album?.Name) == album)
+                .ThenBy(x => x.Diff)
+                .FirstOrDefault();
+            return scored.Track == null ? (null, false) : (scored.Track, scored.Diff > ExactLength);
         }
 
         private static string Quote(string s) => s.Replace("\"", "");

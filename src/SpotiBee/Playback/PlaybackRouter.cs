@@ -421,7 +421,8 @@ namespace SpotiBee.Playback
                 case PlaybackMode.LocalOnly:
                     return isPlaceholder ? Decision.Skip : Decision.MusicBee;
                 case PlaybackMode.SpotifyFirst:
-                    if (spotifyOk)
+                    // A local file that's a different edit can't keep time for Spotify's version: play it here
+                    if (spotifyOk && (isPlaceholder || !record.LocalLengthDiffers))
                         return Decision.Spotify;
                     return isPlaceholder ? Decision.Skip : Decision.MusicBee;
                 default:

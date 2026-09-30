@@ -30,7 +30,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Re-importing an already linked playlist now syncs it instead of overwriting MusicBee-side edits.
 - Auto-playlists sync one way only (MusicBee → Spotify).
 - Deleting a playlist on one side unlinks it and leaves the other side untouched.
-- Local files that Spotify doesn't have aren't searched for again for a week.
+- Local files that Spotify doesn't have aren't searched for again for a week, or until matching
+  improves in an update.
+- **Better matching of local files to Spotify.** In testing, this recovers most of the tracks
+  missed in a first bulk send of compilation playlists.
+  - Release labels are ignored, including nested ones: "(Album Version (Explicit))", "(Single
+    Version / Mono)", "(Mono Single Master)", " - 2009 Remaster". Remixes, live, acoustic and
+    extended versions still only match themselves.
+  - Album prefixes in titles ("Led Zeppelin II - Whole Lotta Love") and artist nicknames
+    (Charlie "Bird" Parker, UGK (Underground Kingz)) are handled.
+  - Band names with "&" are searched in full ("Sly & The Family Stone"), and name variants such
+    as "Joe Turner" / "Big Joe Turner" are accepted.
+  - A close-length version (within 25 s or 12%) is accepted when no exact one exists. In Spotify
+    first mode, those files play locally, since they can't keep time with Spotify's edit.
+  - Tracks that still don't match are logged with what Spotify returned.
 
 ## [0.3.1] – 2026-09-30
 

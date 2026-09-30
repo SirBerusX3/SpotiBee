@@ -96,9 +96,18 @@ ticked MusicBee playlist, including ones made entirely from your own files. Each
 looked up in Spotify's catalogue by title and artist, and the length must agree within
 4 seconds. That lets you listen to your local playlists on devices that don't have the files.
 
-- Tracks Spotify doesn't have (bootlegs, rare releases, different edits) stay in the MusicBee
-  playlist only, in their original place, and are listed at the end.
-- Files Spotify didn't have aren't searched again for a week.
+- Matching ignores release labels such as "(Album Version (Explicit))", "(Single Version /
+  Mono)" and " - 2009 Remaster", album prefixes like "Led Zeppelin II - …", and artist nicknames
+  like Charlie "Bird" Parker. It keeps labels that mean a different recording: remixes, live,
+  acoustic, extended mixes.
+- If no version with the same length exists, a **close** one is accepted: within 25 seconds or
+  12%, which covers compilation edits that are trimmed or faded early. In Spotify first mode,
+  such a file still plays locally, since its length can't keep time with Spotify's version.
+- Tracks Spotify doesn't have (bootlegs, rare releases, very different edits) stay in the
+  MusicBee playlist only, in their original place, and are listed at the end. Details of what
+  Spotify returned for each miss are in the diagnostics report.
+- Files Spotify didn't have aren't searched again for a week, or until matching improves in an
+  update.
 - **Auto-playlists** sync one way only (MusicBee → Spotify), since their contents come from a
   filter.
 - Deleting the MusicBee playlist unlinks it but leaves the Spotify playlist alone, and vice versa.
