@@ -98,9 +98,11 @@ queue, progress bar and play counts behave normally. The panel shows **MusicBee 
   carries on from your file at the same point, and a Spotify-only track is skipped. Spotify
   is retried after a minute.
 - **Scrobbling:** SpotiBee doesn't touch it. MusicBee scrobbles placeholders like any other
-  track, with correct tags. To avoid double scrobbles, unlink Spotify from Last.fm (Last.fm →
-  Settings → Applications). MusicBee's plugin API has no way to skip a single scrobble:
-  switching its Scrobble toggle signs you out of Last.fm.
+  track, with correct tags. With both MusicBee and Spotify linked to Last.fm, testing showed
+  only one scrobble per play, most likely because Last.fm drops a duplicate with a
+  near-identical timestamp. If you ever see doubles, unlink Spotify under Last.fm → Settings →
+  Applications. MusicBee's plugin API has no way to skip a single scrobble: switching its
+  Scrobble toggle signs you out of Last.fm.
 - **In Spotify first mode**, SpotiBee mutes MusicBee while Spotify plays one of your own files.
   Unmuting switches that track back to your file. SpotiBee never unmutes a mute you set yourself.
 - If MusicBee closes unexpectedly, a mute SpotiBee applied is undone the next time it starts.
