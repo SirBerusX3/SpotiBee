@@ -142,8 +142,9 @@ panel covers that, so SpotiBee's lyrics stay hidden.
 - The panel is resizable: drag its edge in MusicBee to give the lyrics more room.
 - Synced lyrics highlight the current line and keep it centred. Scrolling with the mouse wheel
   pauses auto-scrolling for a few seconds.
-- Where lyrics come from, in order: lyrics saved with your file or placeholder, then
-  [LRCLIB](https://lrclib.net), a free lyrics database. LRCLIB is sent only the song's title,
+- Where lyrics come from: lyrics saved with your file or placeholder, then
+  [LRCLIB](https://lrclib.net), a free lyrics database. If your saved lyrics are plain text,
+  LRCLIB is still checked for a synced version, which is shown instead. LRCLIB is sent only the song's title,
   artist, album and length.
 - Lyrics found for a placeholder are saved into it, and so are lyrics MusicBee downloads while
   playing one. Next time they're instant and work offline. Your own music files are never

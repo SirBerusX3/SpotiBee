@@ -116,19 +116,26 @@ namespace SpotiBee.Library
             }
 
             var record = store.GetTrack(track.Id);
-            var lyrics = FromMusicBee(record?.LocalPath) ?? FromMusicBee(record?.PlaceholderPath);
+            var saved = FromMusicBee(record?.LocalPath) ?? FromMusicBee(record?.PlaceholderPath);
+            var lyrics = saved;
             var transientFailure = false;
-            if (lyrics == null)
+
+            // Saved synced lyrics are the best there is. Saved plain lyrics are kept as a fallback,
+            // but LRCLIB often has a synced version of the same song, which follows along as it plays.
+            if (saved == null || (!saved.IsSynced && !saved.Instrumental))
             {
                 try
                 {
-                    lyrics = await FromLrcLibAsync(track, ct);
-                    if (lyrics != null)
-                        SaveToPlaceholder(record, lyrics.Raw);
+                    var online = await FromLrcLibAsync(track, ct);
+                    if (online != null && (saved == null || online.IsSynced))
+                    {
+                        lyrics = online;
+                        SaveToPlaceholder(record, online.Raw);
+                    }
                 }
                 catch (Exception ex) when (!(ex is OperationCanceledException))
                 {
-                    transientFailure = true;
+                    transientFailure = saved == null;
                     Diagnostics.Log("Lyrics lookup for " + track.Name, ex);
                 }
             }
@@ -182,6 +189,10 @@ namespace SpotiBee.Library
         {
             var path = record?.PlaceholderPath;
             if (string.IsNullOrEmpty(path) || string.IsNullOrWhiteSpace(text) || !System.IO.File.Exists(path))
+                return;
+            // Never replace synced lyrics already in the placeholder with anything else
+            var existing = Lyrics.Parse(musicBee.GetLyrics(path), "MusicBee");
+            if (existing?.IsSynced == true)
                 return;
             try
             {

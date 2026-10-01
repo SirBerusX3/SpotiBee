@@ -21,7 +21,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   after asking. Your own files are never touched.
 - **Lyrics in the panel** for whatever Spotify plays outside MusicBee.
   - Synced lyrics highlight and follow the current line.
-  - Lyrics come from your saved lyrics first, then LRCLIB.
+  - Lyrics come from your saved lyrics first, then LRCLIB. When saved lyrics are plain text,
+    LRCLIB's synced version is preferred if it has one.
   - Lyrics found for placeholders (including ones MusicBee downloads) are saved into them for next
     time.
   - Toggle with **Show lyrics** in the panel header menu.
