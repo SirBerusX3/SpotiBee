@@ -131,6 +131,15 @@ namespace MusicBeePlugin
                 case NotificationType.VolumeMuteChanged:
                     OnUi(router.OnMuteChanged);
                     break;
+                case NotificationType.NowPlayingLyricsReady:
+                    // MusicBee found lyrics for a placeholder it is playing: keep them in the file
+                    OnUi(() =>
+                    {
+                        var file = player.NowPlayingFile;
+                        if (controller.Lyrics != null && PlaceholderWriter.IsUnder(file, controller.Settings.EffectivePlaceholderFolder))
+                            controller.Lyrics.SaveDownloaded(file, mbApiInterface.NowPlaying_GetDownloadedLyrics());
+                    });
+                    break;
                 case NotificationType.FileAddedToLibrary:
                     // Batched: a folder scan adds files one notification at a time
                     OnUi(() =>
@@ -162,6 +171,8 @@ namespace MusicBeePlugin
 
                 // Timers must be created on the UI thread, so the playlist scheduler starts here too
                 library = new MusicBeeLibrary(mbApiInterface);
+                controller.Lyrics = new LyricsService(controller.Http, library, controller.Store);
+                NowPlayingPanel.RefreshLyricsSetting();
                 playlistSync = new SyncScheduler(controller, library);
                 playlistSync.Start();
 
@@ -247,7 +258,8 @@ namespace MusicBeePlugin
             {
                 Create();
             }
-            return NowPlayingPanel.PreferredHeightForScreen();
+            // Negative: the panel is resizable and fills its slot, so lyrics can use any extra height
+            return -1;
         }
 
         //  menu shown when the panel header is clicked
@@ -266,6 +278,12 @@ namespace MusicBeePlugin
             return new List<ToolStripItem>
             {
                 mode,
+                new ToolStripMenuItem("Show lyrics", null, (s, e) =>
+                {
+                    controller.Settings.HideLyrics = !controller.Settings.HideLyrics;
+                    try { controller.Settings.Save(); } catch (Exception ex) { Diagnostics.Log("Saving settings", ex); }
+                    NowPlayingPanel.RefreshLyricsSetting();
+                }) { Checked = !controller.Settings.HideLyrics, ToolTipText = "Lyrics for whatever Spotify is playing outside MusicBee" },
                 new ToolStripSeparator(),
                 new ToolStripMenuItem(controller.IsConnected ? "Settings / Disconnect…" : "Connect to Spotify…", null, (s, e) => ShowSettings()),
                 new ToolStripMenuItem("Search Spotify…", null, (s, e) => ShowSearch()) { Enabled = controller.IsConnected },

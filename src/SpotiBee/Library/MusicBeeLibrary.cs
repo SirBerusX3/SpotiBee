@@ -40,6 +40,12 @@ namespace SpotiBee.Library
         bool QueueNext(string[] files);
         bool QueueLast(string[] files);
         bool AppendToPlaylist(string playlistUrl, string[] files);
+
+        // Lyrics
+        /// <summary>Lyrics saved with a library file (LRC text when synchronised), or null.</summary>
+        string GetLyrics(string file);
+        /// <summary>Writes lyrics into a file's tags. Only ever used on placeholders.</summary>
+        bool SetLyrics(string file, string text);
     }
 
     public sealed class MusicBeeLibrary : IMusicBeeLibrary
@@ -112,6 +118,11 @@ namespace SpotiBee.Library
         public bool QueueNext(string[] files) => files.Length > 0 && api.NowPlayingList_QueueFilesNext(files);
         public bool QueueLast(string[] files) => files.Length > 0 && api.NowPlayingList_QueueFilesLast(files);
         public bool AppendToPlaylist(string playlistUrl, string[] files) => files.Length > 0 && api.Playlist_AppendFiles(playlistUrl, files);
+
+        public string GetLyrics(string file) => api.Library_GetLyrics(file, LyricsType.NotSpecified);
+
+        public bool SetLyrics(string file, string text) =>
+            api.Library_SetFileTag(file, MetaDataType.Lyrics, text) && api.Library_CommitTagsToFile(file);
 
         public string AddToLibrary(string path) =>
             api.Library_AddFileToLibrary(path, LibraryCategory.Music) ?? path;

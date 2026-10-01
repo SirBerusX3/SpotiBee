@@ -31,6 +31,9 @@ namespace SpotiBee
         /// <summary>A Playback.PlaybackMode value; 0 (Local first) by default.</summary>
         [DataMember] public int PlaybackMode { get; set; }
 
+        /// <summary>Lyrics show in the panel unless this is set.</summary>
+        [DataMember] public bool HideLyrics { get; set; }
+
         /// <summary>Last "Search in" choice in the search window (0 = Everything).</summary>
         [DataMember] public int SearchScope { get; set; }
 

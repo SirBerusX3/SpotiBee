@@ -133,6 +133,23 @@ Search Spotify…** (also a hotkey). The window stays open while you use MusicBe
   MusicBee Liked Songs at the next sync.
 - **More results** loads the next 10; Spotify returns at most 10 per search.
 
+## Lyrics in the panel
+
+When Spotify plays something outside MusicBee (the Spotify app, your phone, a speaker), the
+panel shows its lyrics below the controls. While MusicBee itself is playing, its own lyrics
+panel covers that, so SpotiBee's lyrics stay hidden.
+
+- The panel is resizable: drag its edge in MusicBee to give the lyrics more room.
+- Synced lyrics highlight the current line and keep it centred. Scrolling with the mouse wheel
+  pauses auto-scrolling for a few seconds.
+- Where lyrics come from, in order: lyrics saved with your file or placeholder, then
+  [LRCLIB](https://lrclib.net), a free lyrics database. LRCLIB is sent only the song's title,
+  artist, album and length.
+- Lyrics found for a placeholder are saved into it, and so are lyrics MusicBee downloads while
+  playing one. Next time they're instant and work offline. Your own music files are never
+  written to.
+- Turn lyrics off with **Show lyrics** in the panel header menu.
+
 ## Keeping the library tidy
 
 - **Your own copy wins.** When you add a song to your MusicBee library that you previously only

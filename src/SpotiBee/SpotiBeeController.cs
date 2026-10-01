@@ -169,6 +169,9 @@ namespace SpotiBee
         /// <summary>Set by the plugin once MusicBee is ready; null before that.</summary>
         public PlaybackRouter Router { get; internal set; }
 
+        /// <summary>Set by the plugin once MusicBee is ready; null before that.</summary>
+        public LyricsService Lyrics { get; internal set; }
+
         private static Task Driving(Action action)
         {
             action();

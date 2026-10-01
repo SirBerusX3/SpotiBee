@@ -19,6 +19,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   that used the placeholder.
 - **Clean Up Unused Placeholders** (Tools menu): deletes placeholders no playlist uses any more,
   after asking. Your own files are never touched.
+- **Lyrics in the panel** for whatever Spotify plays outside MusicBee.
+  - Synced lyrics highlight and follow the current line.
+  - Lyrics come from your saved lyrics first, then LRCLIB.
+  - Lyrics found for placeholders (including ones MusicBee downloads) are saved into them for next
+    time.
+  - Toggle with **Show lyrics** in the panel header menu.
+
+### Changed
+- The SpotiBee panel is now resizable, so lyrics can use any extra height.
 
 ## [0.4.0] – 2026-09-30
 

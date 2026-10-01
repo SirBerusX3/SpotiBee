@@ -49,6 +49,9 @@ namespace SpotiBee.UI
         private string artworkUrl;
         private bool updatingDevices;
         private bool initialised;
+        private readonly LyricsView lyricsView = new LyricsView();
+        private string lyricsTrackId;
+        private System.Threading.CancellationTokenSource lyricsCancel;
 
         public NowPlayingPanel(SpotiBeeController controller, SkinColours skin, Action openSettings, Action openSearch = null)
         {
@@ -79,6 +82,11 @@ namespace SpotiBee.UI
             elapsed.Font = duration.Font = new Font(skin.Font.FontFamily, Math.Max(7f, skin.Font.Size - 1f));
             status.ForeColor = skin.Dim;
             status.Font = elapsed.Font;
+            lyricsView.BackColor = skin.Background;
+            lyricsView.ForeColor = skin.Foreground;
+            lyricsView.DimColor = skin.Dim;
+            lyricsView.HighlightColor = skin.Accent;
+            lyricsView.Font = new Font(skin.Font.FontFamily, skin.Font.Size + 0.5f);
             seekBar.TrackColor = skin.Track;
             seekBar.FillColor = skin.Accent;
             artwork.BackColor = skin.Track;
@@ -146,7 +154,7 @@ namespace SpotiBee.UI
             Controls.AddRange(new Control[]
             {
                 disconnected, artwork, title, artist, album, seekBar, elapsed, duration,
-                shuffle, previous, playPause, next, repeat, searchButton, devices, mode, source, status,
+                shuffle, previous, playPause, next, repeat, searchButton, devices, mode, source, status, lyricsView,
             });
 
             ticker.Tick += (s, e) => UpdateProgress();
@@ -227,12 +235,19 @@ namespace SpotiBee.UI
             devices.Bounds = new Rectangle(searchButton.Right + S(4), comboTop, Math.Max(0, width - pad * 3 - modeWidth - searchWidth - S(4)), devices.Height);
             mode.Bounds = new Rectangle(devices.Right + pad, comboTop, modeWidth, devices.Height);
             status.Bounds = new Rectangle(pad, devices.Bottom + S(4), Math.Max(0, width - pad * 2), S(16));
+            var lyricsTop = status.Bottom + S(4);
+            lyricsView.Bounds = new Rectangle(pad, lyricsTop, Math.Max(0, width - pad * 2), Math.Max(0, ClientSize.Height - lyricsTop - pad));
+            lyricsView.Visible = ShowingLyrics && lyricsView.Height >= S(40);
         }
 
         // --- Controller events (may arrive on background threads) ---------
 
         private void OnConnectionChanged() => Ui(ShowConnectionState);
-        private void OnRouterStateChanged() => Ui(UpdateRouteDisplay);
+        private void OnRouterStateChanged() => Ui(() =>
+        {
+            UpdateRouteDisplay();
+            UpdateLyrics();
+        });
 
         private void UpdateRouteDisplay()
         {
@@ -396,10 +411,74 @@ namespace SpotiBee.UI
             UpdateDeviceDisplay(state.Device);
             UpdateProgress();
             _ = LoadArtworkAsync(item.Artwork);
+            UpdateLyrics();
+        }
+
+        // --- Lyrics -------------------------------------------------------
+
+        /// <summary>
+        /// Lyrics show for whatever Spotify is playing outside MusicBee. While MusicBee itself is
+        /// driving playback, MusicBee's own lyrics panel already covers it.
+        /// </summary>
+        private bool ShowingLyrics =>
+            !controller.Settings.HideLyrics &&
+            controller.Lyrics != null &&
+            controller.IsConnected &&
+            snapshot?.State?.Item?.Id != null &&
+            controller.Router?.Route != PlaybackRoute.Spotify;
+
+        private async void UpdateLyrics()
+        {
+            var wasVisible = lyricsView.Visible;
+            lyricsView.Visible = ShowingLyrics && lyricsView.Height >= S(40);
+            if (lyricsView.Visible != wasVisible)
+                PerformLayout();
+            if (!ShowingLyrics)
+                return;
+
+            var track = snapshot.State.Item;
+            if (track.Id == lyricsTrackId)
+                return;
+            lyricsTrackId = track.Id;
+            lyricsCancel?.Cancel();
+            var cancel = lyricsCancel = new System.Threading.CancellationTokenSource();
+            lyricsView.ShowMessage("Looking up lyrics…");
+            try
+            {
+                var lyrics = await controller.Lyrics.GetAsync(track, cancel.Token);
+                if (!IsDisposed && lyricsTrackId == track.Id && !cancel.IsCancellationRequested)
+                {
+                    lyricsView.ShowLyrics(lyrics);
+                    lyricsView.UpdatePosition(snapshot?.Position ?? TimeSpan.Zero);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Log("Showing lyrics", ex);
+                if (!IsDisposed && lyricsTrackId == track.Id)
+                    lyricsView.ShowMessage("Couldn't load lyrics");
+            }
+        }
+
+        /// <summary>Re-applies the "show lyrics" setting to every open panel.</summary>
+        public static void RefreshLyricsSetting()
+        {
+            foreach (var panel in LivePanels)
+                if (!panel.IsDisposed)
+                {
+                    panel.lyricsTrackId = null;
+                    panel.UpdateLyrics();
+                    panel.PerformLayout();
+                }
         }
 
         private void ShowNothingPlaying()
         {
+            lyricsTrackId = null;
+            lyricsView.Visible = false;
             title.Text = controller.IsConnected ? "Nothing playing" : "";
             artist.Text = controller.IsConnected ? "Start something in Spotify or press play" : "";
             album.Text = "";
@@ -417,6 +496,8 @@ namespace SpotiBee.UI
             if (s?.State?.Item == null || seekBar.IsDragging)
                 return;
             var position = s.Position;
+            if (lyricsView.Visible)
+                lyricsView.UpdatePosition(position);
             var total = s.Duration;
             seekBar.Value = total > TimeSpan.Zero ? position.TotalMilliseconds / total.TotalMilliseconds : 0;
             elapsed.Text = FormatTime(position);
@@ -565,6 +646,7 @@ namespace SpotiBee.UI
                 if (controller.Router != null)
                     controller.Router.StateChanged -= OnRouterStateChanged;
                 ticker.Dispose();
+                lyricsCancel?.Cancel();
                 statusClear.Dispose();
                 tips.Dispose();
                 artwork.Image?.Dispose();
