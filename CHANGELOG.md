@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.5.0] – 2026-10-01
+
 ### Added
 - **Search Spotify** from a new search button on the panel, the Tools menu, or a hotkey. The
   window stays open alongside MusicBee.
@@ -167,6 +169,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   MusicBee plugins.
 
 [Unreleased]: #unreleased
+[0.5.0]: #050--2026-10-01
 [0.4.0]: #040--2026-09-30
 [0.3.1]: #031--2026-09-30
 [0.3.0]: #030--2026-09-30
