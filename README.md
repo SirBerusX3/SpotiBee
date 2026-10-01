@@ -1,4 +1,6 @@
-# SpotiBee
+# ![shadow](https://imglink.cc/cdn/N9rRfKHocK.png) 
+
+
 
 A MusicBee plugin that bridges MusicBee and Spotify.
 
