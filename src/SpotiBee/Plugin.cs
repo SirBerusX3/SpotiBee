@@ -141,12 +141,9 @@ namespace MusicBeePlugin
                     });
                     break;
                 case NotificationType.FileAddedToLibrary:
-                    // Batched: a folder scan adds files one notification at a time
-                    OnUi(() =>
-                    {
-                        addedFiles.Add(sourceFileUrl);
-                        addedFilesDue = DateTime.UtcNow.AddSeconds(5);
-                    });
+                case NotificationType.FileAddedToInbox:
+                    // A folder scan sends one notification per file: check once things settle
+                    OnUi(() => upgradeDue = DateTime.UtcNow.AddSeconds(5));
                     break;
             }
         }
@@ -379,8 +376,8 @@ namespace MusicBeePlugin
 
         private SearchForm searchWindow;
         private System.Windows.Forms.Timer tidyTimer;
-        private readonly List<string> addedFiles = new List<string>();
-        private DateTime addedFilesDue;
+        /// <summary>When to next look for local copies of placeholders; null when nothing is pending.</summary>
+        private DateTime? upgradeDue = DateTime.UtcNow.AddSeconds(30);
 
         private LibraryTidy Tidy()
         {
@@ -388,16 +385,19 @@ namespace MusicBeePlugin
             return new LibraryTidy(library, controller.Store, p => PlaceholderWriter.IsUnder(p, folder), folder);
         }
 
-        /// <summary>Swaps newly added local files in for their placeholders, once a batch of additions settles.</summary>
-        private void UpgradeAddedFiles()
+        /// <summary>
+        /// Swaps local copies in for placeholders across the whole library: shortly after startup,
+        /// after files are added, and before a manual sync. Not tied to the "file added"
+        /// notification alone, since MusicBee doesn't send it for every way of adding files.
+        /// </summary>
+        private void UpgradeAddedFiles(bool now = false)
         {
-            if (addedFiles.Count == 0 || DateTime.UtcNow < addedFilesDue || library == null || controller == null)
+            if (library == null || controller == null || (!now && (upgradeDue == null || DateTime.UtcNow < upgradeDue)))
                 return;
-            var batch = addedFiles.ToList();
-            addedFiles.Clear();
+            upgradeDue = null;
             try
             {
-                var upgraded = Tidy().UpgradePlaceholders(batch);
+                var upgraded = Tidy().UpgradePlaceholdersFromLibrary();
                 if (upgraded > 0)
                     controller.ShowStatus($"Your own copy of {upgraded} song(s) now replaces the Spotify placeholder in your playlists.");
             }
@@ -478,6 +478,7 @@ namespace MusicBeePlugin
                 controller.ShowStatus("No playlists are linked yet. Import from Spotify or send one to Spotify first.");
                 return;
             }
+            UpgradeAddedFiles(now: true);
             controller.ShowStatus("Syncing playlists…");
             var outcomes = await playlistSync.SyncAllAsync();
             if (outcomes == null)

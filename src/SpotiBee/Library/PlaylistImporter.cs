@@ -199,11 +199,11 @@ namespace SpotiBee.Library
 
                 if (!record.LocalPathPinned)
                 {
-                    var exact = matcher.Match(track)?.Path;
-                    if (exact != null)
+                    var local = matcher.MatchExactOrClose(track, out var lengthDiffers)?.Path;
+                    if (local != null)
                     {
-                        record.LocalPath = exact;
-                        record.LocalLengthDiffers = false;
+                        record.LocalPath = local;
+                        record.LocalLengthDiffers = lengthDiffers;
                     }
                     else
                     {

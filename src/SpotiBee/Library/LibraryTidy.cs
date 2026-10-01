@@ -36,31 +36,53 @@ namespace SpotiBee.Library
         /// (same title, artist and length), use it instead in every MusicBee playlist.
         /// Returns how many placeholders were replaced.
         /// </summary>
-        public int UpgradePlaceholders(IEnumerable<string> addedFiles)
+        public int UpgradePlaceholders(IEnumerable<string> addedFiles) =>
+            UpgradePlaceholders(addedFiles.Where(f => !string.IsNullOrEmpty(f) && !isPlaceholderPath(f))
+                                          .Distinct(StringComparer.OrdinalIgnoreCase)
+                                          .Select(musicBee.GetTrack)
+                                          .Where(t => t != null)
+                                          .ToList());
+
+        /// <summary>
+        /// Checks the whole library for local copies of placeholders. Doesn't rely on MusicBee's
+        /// "file added" notification, which isn't sent for every way of adding files.
+        /// </summary>
+        public int UpgradePlaceholdersFromLibrary() =>
+            store.AllTracks.Any(NeedsLocalCopy)
+                ? UpgradePlaceholders(musicBee.GetMusicTracks().Where(t => !isPlaceholderPath(t.Path)).ToList())
+                : 0;
+
+        private static bool NeedsLocalCopy(TrackRecord record) =>
+            !string.IsNullOrEmpty(record.PlaceholderPath) && !record.LocalPathPinned &&
+            (string.IsNullOrEmpty(record.LocalPath) || !File.Exists(record.LocalPath));
+
+        private int UpgradePlaceholders(List<LocalTrack> candidates)
         {
-            var added = addedFiles.Where(f => !string.IsNullOrEmpty(f) && !isPlaceholderPath(f))
-                                  .Distinct(StringComparer.OrdinalIgnoreCase)
-                                  .Select(musicBee.GetTrack)
-                                  .Where(t => t != null)
-                                  .ToList();
-            if (added.Count == 0)
+            if (candidates.Count == 0)
                 return 0;
-            var matcher = new LocalMatcher(added);
+            var matcher = new LocalMatcher(candidates);
 
             var replacements = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var record in store.AllTracks)
+            foreach (var record in store.AllTracks.Where(NeedsLocalCopy))
             {
-                if (string.IsNullOrEmpty(record.PlaceholderPath) || record.LocalPathPinned ||
-                    (!string.IsNullOrEmpty(record.LocalPath) && File.Exists(record.LocalPath)))
-                    continue;
-                var artists = (record.Artist ?? "").Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries);
-                var match = matcher.Match(artists, record.Title, record.Album, TimeSpan.FromMilliseconds(record.DurationMs));
+                // Same recording if there is one, otherwise a close-length edit (flagged, so
+                // Spotify-first playback plays it locally rather than using it as Spotify's clock)
+                var track = new Spotify.Track
+                {
+                    Name = record.Title,
+                    DurationMs = record.DurationMs,
+                    Album = new Spotify.Album { Name = record.Album },
+                    Artists = (record.Artist ?? "").Split(new[] { ", " }, StringSplitOptions.RemoveEmptyEntries)
+                                                   .Select(a => new Spotify.Artist { Name = a }).ToArray(),
+                };
+                var match = matcher.MatchExactOrClose(track, out var lengthDiffers);
                 if (match == null)
                     continue;
                 record.LocalPath = match.Path;
-                record.LocalLengthDiffers = false;
+                record.LocalLengthDiffers = lengthDiffers;
                 replacements[record.PlaceholderPath] = match.Path;
             }
+            Diagnostics.Log($"Placeholder upgrade: checked {candidates.Count} local file(s), {replacements.Count} placeholder(s) replaced");
             if (replacements.Count == 0)
                 return 0;
 

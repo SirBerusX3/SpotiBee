@@ -34,6 +34,9 @@ namespace SpotiBee.Library
             RegexOptions.CultureInvariant);
         private static readonly Regex InnermostBrackets = new Regex(@"[\(\[]([^\(\)\[\]]*)[\)\]]", RegexOptions.CultureInvariant);
         private static readonly Regex LabelTokens = new Regex(@"[a-z0-9]+", RegexOptions.CultureInvariant);
+        private static readonly Regex Ordinal = new Regex(@"^\d+(st|nd|rd|th)$", RegexOptions.CultureInvariant);
+        // "Losin'" and "Losing" are the same word
+        private static readonly Regex DroppedG = new Regex(@"(\w)in['’](?=\W|$)", RegexOptions.CultureInvariant);
 
         // Words that only describe which release or master a recording came from. A bracket or " - "
         // suffix made only of these (and years) is dropped. Deliberately absent: live, remix, acoustic,
@@ -43,15 +46,16 @@ namespace SpotiBee.Library
             "remaster", "remastered", "remasters", "mastered", "master", "digital", "digitally",
             "album", "single", "lp", "version", "original", "explicit", "clean", "censored", "uncensored",
             "mono", "stereo", "radio", "edit", "mix", "bonus", "track", "deluxe", "edition", "expanded",
-            "and", "from",
+            "and", "from", "anniversary", "reissue", "reissued",
         };
         private static readonly HashSet<string> CoreLabelWords = new HashSet<string>(StringComparer.Ordinal)
         {
             "remaster", "remastered", "remasters", "mastered", "master", "version", "explicit", "clean",
-            "censored", "uncensored", "mono", "stereo", "edit", "mix", "bonus",
+            "censored", "uncensored", "mono", "stereo", "edit", "mix", "bonus", "anniversary",
         };
 
         private readonly Dictionary<string, List<LocalTrack>> index = new Dictionary<string, List<LocalTrack>>(StringComparer.Ordinal);
+        private readonly Dictionary<string, List<LocalTrack>> byArtist = new Dictionary<string, List<LocalTrack>>(StringComparer.Ordinal);
 
         public LocalMatcher(IEnumerable<LocalTrack> tracks)
         {
@@ -69,6 +73,9 @@ namespace SpotiBee.Library
                         index[key] = list = new List<LocalTrack>();
                     if (!list.Contains(track))
                         list.Add(track);
+                    if (!byArtist.TryGetValue(artist, out var artistList))
+                        byArtist[artist] = artistList = new List<LocalTrack>();
+                    artistList.Add(track);
                 }
                 Count++;
             }
@@ -80,7 +87,80 @@ namespace SpotiBee.Library
             Match(spotify.Artists?.Select(a => a.Name) ?? Enumerable.Empty<string>(),
                   spotify.Name, spotify.Album?.Name, TimeSpan.FromMilliseconds(spotify.DurationMs));
 
-        public LocalTrack Match(IEnumerable<string> artists, string title, string album, TimeSpan duration)
+        /// <summary>
+        /// The same recording if there is one; otherwise a close-length version of the same song
+        /// (an edit that's trimmed or faded differently), reported with <paramref name="lengthDiffers"/>.
+        /// </summary>
+        public LocalTrack MatchExactOrClose(Track spotify, out bool lengthDiffers)
+        {
+            var exact = Match(spotify);
+            lengthDiffers = false;
+            if (exact != null || spotify.DurationMs <= 0)
+                return exact;
+            var length = TimeSpan.FromMilliseconds(spotify.DurationMs);
+            var artists = spotify.Artists?.Select(a => a.Name).ToList() ?? new List<string>();
+            var close = Match(artists, spotify.Name, spotify.Album?.Name, length, TrackResolver.CloseLength(length));
+            if (close != null)
+            {
+                lengthDiffers = true;
+                return close;
+            }
+            return MatchNearTitle(artists, spotify.Name, length);
+        }
+
+        private static readonly TimeSpan NearTitleLength = TimeSpan.FromSeconds(2);
+
+        /// <summary>
+        /// Same artist, same length to within 2 s, and a title a letter or two apart
+        /// ("Key To Your Love" / "Keys To Your Love"). Identical length makes a mix-up very unlikely.
+        /// </summary>
+        private LocalTrack MatchNearTitle(IEnumerable<string> artists, string title, TimeSpan length)
+        {
+            var key = NormalizeTitle(title);
+            if (key.Length < 6)
+                return null;
+            var allowed = key.Length >= 16 ? 2 : 1;
+            return artists.Select(PrimaryArtist).Where(a => a.Length > 0).Distinct()
+                .SelectMany(a => byArtist.TryGetValue(a, out var list) ? list : new List<LocalTrack>())
+                .Distinct()
+                .Where(c => c.Duration.HasValue && (c.Duration.Value - length).Duration() <= NearTitleLength)
+                .Select(c => (Track: c, Distance: EditDistance(NormalizeTitle(c.Title), key, allowed)))
+                .Where(x => x.Distance <= allowed)
+                .OrderBy(x => x.Distance)
+                .Select(x => x.Track)
+                .FirstOrDefault();
+        }
+
+        /// <summary>Levenshtein distance, giving up early (returning max + 1) once it exceeds <paramref name="max"/>.</summary>
+        internal static int EditDistance(string a, string b, int max)
+        {
+            if (Math.Abs(a.Length - b.Length) > max)
+                return max + 1;
+            var previous = new int[b.Length + 1];
+            var current = new int[b.Length + 1];
+            for (var j = 0; j <= b.Length; j++)
+                previous[j] = j;
+            for (var i = 1; i <= a.Length; i++)
+            {
+                current[0] = i;
+                var rowMin = current[0];
+                for (var j = 1; j <= b.Length; j++)
+                {
+                    var cost = a[i - 1] == b[j - 1] ? 0 : 1;
+                    current[j] = Math.Min(Math.Min(current[j - 1] + 1, previous[j] + 1), previous[j - 1] + cost);
+                    rowMin = Math.Min(rowMin, current[j]);
+                }
+                if (rowMin > max)
+                    return max + 1;
+                (previous, current) = (current, previous);
+            }
+            return previous[b.Length];
+        }
+
+        public LocalTrack Match(IEnumerable<string> artists, string title, string album, TimeSpan duration) =>
+            Match(artists, title, album, duration, DurationTolerance);
+
+        public LocalTrack Match(IEnumerable<string> artists, string title, string album, TimeSpan duration, TimeSpan tolerance)
         {
             var normalizedTitle = NormalizeTitle(title);
             if (normalizedTitle.Length == 0)
@@ -93,7 +173,7 @@ namespace SpotiBee.Library
                 .SelectMany(a => index.TryGetValue(a + "|" + normalizedTitle, out var list) ? list : Enumerable.Empty<LocalTrack>())
                 .Distinct()
                 .Where(c => duration <= TimeSpan.Zero || c.Duration == null ||
-                            (c.Duration.Value - duration).Duration() <= DurationTolerance);
+                            (c.Duration.Value - duration).Duration() <= tolerance);
 
             // Same album first, then the closest length
             return candidates
@@ -130,7 +210,7 @@ namespace SpotiBee.Library
         {
             if (string.IsNullOrWhiteSpace(title))
                 return "";
-            return Simplify(StripVersionLabels(Featuring.Replace(title, "")));
+            return Simplify(DroppedG.Replace(StripVersionLabels(Featuring.Replace(title, "")), "$1ing"));
         }
 
         /// <summary>
@@ -182,6 +262,8 @@ namespace SpotiBee.Library
             foreach (var token in tokens)
             {
                 var isYear = token.Length == 4 && token.All(char.IsDigit) && (token[0] == '1' || token[0] == '2');
+                // "50th" in "50th Anniversary Edition"
+                isYear |= Ordinal.IsMatch(token);
                 if (isYear)
                     continue;
                 if (!LabelWords.Contains(token))

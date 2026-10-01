@@ -153,9 +153,11 @@ panel covers that, so SpotiBee's lyrics stay hidden.
 
 ## Keeping the library tidy
 
-- **Your own copy wins.** When you add a song to your MusicBee library that you previously only
-  had as a placeholder (same title, artist and length), SpotiBee swaps your file into every
-  playlist that used the placeholder. The Spotify playlists don't change.
+- **Your own copy wins.** When your MusicBee library has a song you previously only
+  had as a placeholder (same title and artist, similar length), SpotiBee swaps your file into every
+  playlist that used the placeholder. The Spotify playlists don't change. It checks shortly
+  after MusicBee starts, after files are added, and when you run Sync Playlists Now. Very
+  different edits (say a 3:35 single edit of a 4:49 album track) stay as placeholders.
 - **Tools → SpotiBee: Clean Up Unused Placeholders…** finds placeholders that no MusicBee
   playlist uses any more and, if you confirm, deletes them. Auto-playlists such as Recently
   Added don't count, since they only filter the library. Removing a song from a playlist (or

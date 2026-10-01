@@ -16,7 +16,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - **Search in** Everything, Artist, Song or Album; the choice is remembered.
 - **Your own copy replaces placeholders**: when you add a song to your library that you only had
   as a placeholder (same title, artist and length), your file is swapped into every playlist
-  that used the placeholder.
+  that used the placeholder. SpotiBee checks the whole library shortly after MusicBee starts,
+  after files are added, and before Sync Playlists Now, rather than relying on MusicBee's
+  "file added" notification, which isn't sent for every way of adding files.
 - **Clean Up Unused Placeholders** (Tools menu): deletes placeholders no playlist uses any more,
   after asking. Your own files are never touched.
 - **Lyrics in the panel** for whatever Spotify plays outside MusicBee.
@@ -29,6 +31,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 - The SpotiBee panel is now resizable, so lyrics can use any extra height.
+- Matching local files to Spotify tracks (on import and when upgrading placeholders) accepts
+  close-length edits, "50th Anniversary Edition"-style labels, dropped g's ("Losin'"/"Losing"),
+  and titles a letter apart when the length matches to the second ("Key"/"Keys To Your Love").
 
 ## [0.4.0] – 2026-09-30
 
