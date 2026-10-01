@@ -78,12 +78,17 @@ namespace SpotiBee.Library
             return replacements.Count;
         }
 
-        /// <summary>Placeholder files that no MusicBee playlist (including auto-playlists) contains.</summary>
+        /// <summary>
+        /// Placeholder files that no regular MusicBee playlist contains. Auto-playlists don't count:
+        /// they're filters over the library ("Recently Added" holds every new placeholder), so
+        /// counting them would make every placeholder look used.
+        /// </summary>
         public List<Orphan> FindOrphans(string nowPlaying)
         {
             var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var (url, _) in musicBee.GetPlaylists())
-                used.UnionWith(musicBee.GetPlaylistFiles(url));
+                if (!musicBee.IsAutoPlaylist(url))
+                    used.UnionWith(musicBee.GetPlaylistFiles(url));
             if (!string.IsNullOrEmpty(nowPlaying))
                 used.Add(nowPlaying);
 

@@ -139,7 +139,9 @@ Search Spotify…** (also a hotkey). The window stays open while you use MusicBe
   had as a placeholder (same title, artist and length), SpotiBee swaps your file into every
   playlist that used the placeholder. The Spotify playlists don't change.
 - **Tools → SpotiBee: Clean Up Unused Placeholders…** finds placeholders that no MusicBee
-  playlist uses any more and, if you confirm, deletes them. Your own music files are never
+  playlist uses any more and, if you confirm, deletes them. Auto-playlists such as Recently
+  Added don't count, since they only filter the library. Removing a song from a playlist (or
+  a sync removing it) never deletes its placeholder by itself. Your own music files are never
   touched. MusicBee's plugin API can't remove library entries, so MusicBee lists the deleted
   placeholders as missing files until you remove missing files from the library yourself.
 

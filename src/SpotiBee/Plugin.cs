@@ -397,13 +397,14 @@ namespace MusicBeePlugin
             var orphans = tidy.FindOrphans(player.NowPlayingFile);
             if (orphans.Count == 0)
             {
-                MessageBox.Show(MainWindow, "Every Spotify placeholder is still used by a playlist. Nothing to clean up.",
+                MessageBox.Show(MainWindow, "Every Spotify placeholder is still in one of your playlists. Nothing to clean up.",
                     "SpotiBee", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             var megabytes = orphans.Sum(o => o.Bytes) / 1024.0 / 1024.0;
             var answer = MessageBox.Show(MainWindow,
-                $"{orphans.Count} Spotify placeholder(s) ({megabytes:0.#} MB) aren't in any MusicBee playlist any more.\n\n" +
+                $"{orphans.Count} Spotify placeholder(s) ({megabytes:0.#} MB) aren't in any of your MusicBee playlists any more " +
+                "(auto-playlists like Recently Added don't count, since they just show what's in the library).\n\n" +
                 "Delete them? Your own music files are never touched.\n\n" +
                 "MusicBee will list the deleted placeholders as missing files until you remove missing files from the " +
                 "library in MusicBee. Plugins can't do that part.",
