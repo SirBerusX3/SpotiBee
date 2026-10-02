@@ -4,7 +4,7 @@ All notable changes to SpotiBee are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may change behaviour.
 
-## [Unreleased]
+## [0.6.0] – 2026-10-02
 
 ### Added
 - **Like, playlist, album and artist buttons on the panel** for the song Spotify is playing:
@@ -188,7 +188,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - No third-party DLLs, only .NET Framework assemblies, so SpotiBee can't clash with other
   MusicBee plugins.
 
-[Unreleased]: #unreleased
+[0.6.0]: #060--2026-10-02
 [0.5.0]: #050--2026-10-01
 [0.4.0]: #040--2026-09-30
 [0.3.1]: #031--2026-09-30

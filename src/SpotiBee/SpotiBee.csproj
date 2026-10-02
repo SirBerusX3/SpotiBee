@@ -10,7 +10,7 @@
     <Nullable>disable</Nullable>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <!-- The single source of the version: the plugin reads it from the built assembly -->
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
     <Product>SpotiBee</Product>
     <Description>Spotify bridge for MusicBee</Description>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
