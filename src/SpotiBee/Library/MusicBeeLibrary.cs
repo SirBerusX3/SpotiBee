@@ -90,6 +90,10 @@ namespace SpotiBee.Library
             };
         }
 
+        /// <summary>The files selected in MusicBee's current track list.</summary>
+        public string[] GetSelectedFiles() =>
+            api.Library_QueryFilesEx("domain=SelectedFiles", out var files) && files != null ? files : new string[0];
+
         public IList<(string Url, string Name)> GetPlaylists()
         {
             var result = new List<(string, string)>();

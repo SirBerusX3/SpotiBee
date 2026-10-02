@@ -19,6 +19,7 @@ namespace SpotiBee
         private static readonly TimeSpan FirstPollDelay = TimeSpan.FromSeconds(20);
         private static readonly TimeSpan ChangeDebounce = TimeSpan.FromSeconds(4);
         private static readonly TimeSpan OwnWriteEcho = TimeSpan.FromSeconds(6);
+        private static readonly TimeSpan SoonDelay = TimeSpan.FromSeconds(2);
 
         private readonly SpotiBeeController controller;
         private readonly IMusicBeeLibrary musicBee;
@@ -50,6 +51,17 @@ namespace SpotiBee
             if (controller.Store.FindPlaylistByMusicBeeUrl(url) == null)
                 return;
             pendingByUrl[url] = DateTime.UtcNow + ChangeDebounce;
+        }
+
+        /// <summary>
+        /// SpotiBee changed this playlist on Spotify (e.g. from the panel): bring MusicBee's copy in
+        /// line in a moment rather than at the next poll. Changes made close together share one sync.
+        /// </summary>
+        public void SyncSoon(PlaylistRecord link)
+        {
+            if (link?.MusicBeePlaylistUrl == null || controller.Settings.DisableAutoSync)
+                return;
+            pendingByUrl[link.MusicBeePlaylistUrl] = DateTime.UtcNow + SoonDelay;
         }
 
         /// <summary>Sync every linked playlist now. Returns null if a sync is already running or not connected.</summary>

@@ -172,6 +172,7 @@ namespace MusicBeePlugin
                 NowPlayingPanel.RefreshLyricsSetting();
                 playlistSync = new SyncScheduler(controller, library);
                 playlistSync.Start();
+                controller.SpotifyLibrary = new SpotifyLibrary(controller, library, playlistSync, Path.Combine(storageDir, "playlists.json"));
 
                 tidyTimer = new System.Windows.Forms.Timer { Interval = 1000 };
                 tidyTimer.Tick += (s, e) => UpgradeAddedFiles();
@@ -311,6 +312,18 @@ namespace MusicBeePlugin
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Previous Track", "SpotiBee: Previous Track", async (s, e) => await controller.PreviousAsync());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Switch Playback Mode", "SpotiBee: Switch Playback Mode", (s, e) => router.CycleMode());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Save Diagnostics Report", null, (s, e) => SaveDiagnostics());
+
+            // Right-clicking songs: like them, add them to Spotify playlists, save the album, follow the artist
+            if (mbApiInterface.MB_AddMenuItem("context.Main/SpotiBee", null, null) is ToolStripMenuItem spotify)
+            {
+                var menu = new TrackMenu(controller, () => MainWindow);
+                spotify.DropDownItems.Add(new ToolStripMenuItem("Loading…") { Enabled = false });
+                spotify.DropDownOpening += async (s, e) =>
+                {
+                    try { await menu.FillForFilesAsync(spotify.DropDownItems, library?.GetSelectedFiles() ?? new string[0]); }
+                    catch (Exception ex) { Diagnostics.Log("Spotify menu", ex); }
+                };
+            }
         }
 
         private void SaveDiagnostics()

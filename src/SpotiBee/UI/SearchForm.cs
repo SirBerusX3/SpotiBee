@@ -265,9 +265,16 @@ namespace SpotiBee.UI
 
         private async Task<string> LikeAsync(List<Track> tracks)
         {
-            await controller.Client.SaveToLibraryAsync(tracks.Select(t => t.Uri));
+            var uris = tracks.Select(t => t.Uri).ToList();
+            // Through the shared library when it's there, so a synced Liked Songs catches up straight away
+            if (controller.SpotifyLibrary != null)
+                await controller.SpotifyLibrary.SetSavedAsync(uris, save: true);
+            else
+                await controller.Client.SaveToLibraryAsync(uris);
             var synced = controller.Store.GetPlaylist(PlaylistRecord.LikedSongsId) != null;
-            return $"Liked {Describe(tracks)} on Spotify." + (synced ? " It'll appear in your MusicBee Liked Songs at the next sync." : "");
+            var soon = controller.SpotifyLibrary != null && !controller.Settings.DisableAutoSync;
+            return $"Liked {Describe(tracks)} on Spotify." +
+                (synced ? soon ? " It'll appear in your MusicBee Liked Songs in a moment." : " It'll appear in your MusicBee Liked Songs at the next sync." : "");
         }
 
         private void BuildPlaylistMenu()

@@ -4,6 +4,28 @@ All notable changes to SpotiBee are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may change behaviour.
 
+## [Unreleased]
+
+### Added
+- **Like, playlist, album and artist buttons on the panel** for the song Spotify is playing:
+  - **♥** likes or unlikes it, and shows whether it's already in your Liked Songs.
+  - **+** lists the Spotify playlists you can edit, with their lengths. Ticked playlists already
+    have the song; click one to add it or remove it.
+  - **…** saves or removes the album, follows or unfollows each artist on the song, and opens
+    the album or artist in Spotify.
+- **SpotiBee in MusicBee's right-click menu** for the selected songs, your own files included
+  (they're matched to Spotify first): like, add to or remove from Spotify playlists, save the
+  album, follow the artist, open in Spotify.
+- When one of those changes a synced playlist or Liked Songs, the MusicBee copy catches up a
+  couple of seconds later instead of at the next sync. Liking from Search does the same.
+- What's in each playlist is remembered between sessions and only fetched again for playlists
+  that changed on Spotify.
+
+### Changed
+- SpotiBee now asks Spotify for permission to see and change the artists you follow. Existing
+  logins keep working; the first time you follow an artist, SpotiBee offers to reconnect so you
+  can approve it.
+
 ## [0.5.0] – 2026-10-01
 
 ### Added

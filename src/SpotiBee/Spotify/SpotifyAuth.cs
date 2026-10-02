@@ -37,7 +37,12 @@ namespace SpotiBee.Spotify
             "playlist-modify-public",
             "user-library-read",
             "user-library-modify",
+            "user-follow-read",
+            "user-follow-modify",
         };
+
+        /// <summary>Needed to see and change which artists the user follows; added in 0.6.0.</summary>
+        public static readonly string[] FollowScopes = { "user-follow-read", "user-follow-modify" };
 
         public static async Task<TokenResponse> AuthorizeAsync(HttpClient http, string clientId, CancellationToken cancellationToken)
         {

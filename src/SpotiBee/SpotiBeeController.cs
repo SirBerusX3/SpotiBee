@@ -76,6 +76,9 @@ namespace SpotiBee
             await LoadUserAsync();
         }
 
+        /// <summary>Logs in again with the same app, e.g. to grant permissions added in a newer version.</summary>
+        public Task ReconnectAsync(CancellationToken ct) => ConnectAsync(Settings.ClientId, ct);
+
         public void Disconnect()
         {
             DetachClient();
@@ -171,6 +174,9 @@ namespace SpotiBee
 
         /// <summary>Set by the plugin once MusicBee is ready; null before that.</summary>
         public LyricsService Lyrics { get; internal set; }
+
+        /// <summary>Like, playlist, album and artist actions. Set by the plugin once MusicBee is ready; null before that.</summary>
+        public SpotifyLibrary SpotifyLibrary { get; internal set; }
 
         private static Task Driving(Action action)
         {

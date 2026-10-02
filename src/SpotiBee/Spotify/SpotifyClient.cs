@@ -25,6 +25,7 @@ namespace SpotiBee.Spotify
         private string accessToken;
         private DateTime accessTokenExpiresUtc;
         private string refreshToken;
+        private volatile HashSet<string> grantedScopes;
 
         public SpotifyClient(HttpClient http, string clientId, string refreshToken)
         {
@@ -43,6 +44,18 @@ namespace SpotiBee.Spotify
         public event Action<string> RefreshTokenChanged;
 
         public string RefreshToken => refreshToken;
+
+        /// <summary>
+        /// Whether the user granted every one of these permissions. Logins from older versions
+        /// lack the ones added since, until the user connects again.
+        /// </summary>
+        public async Task<bool> HasScopesAsync(IEnumerable<string> scopes)
+        {
+            // Spotify lists the granted scopes with each token, so make sure there is one
+            await GetAccessTokenAsync(forceRefresh: false).ConfigureAwait(false);
+            var granted = grantedScopes;
+            return granted == null || scopes.All(granted.Contains);
+        }
 
         // --- Profile -------------------------------------------------------
 
@@ -159,13 +172,29 @@ namespace SpotiBee.Spotify
             return result?.Tracks?.Items?.Where(t => t != null).ToArray() ?? new Track[0];
         }
 
-        /// <summary>Adds tracks to Liked Songs.</summary>
+        public Task<Track> GetTrackAsync(string trackId, CancellationToken ct = default) =>
+            GetAsync<Track>($"tracks/{Uri.EscapeDataString(trackId)}", ct);
+
+        /// <summary>Saves to the user's library by URI: tracks go to Liked Songs, albums are saved, artists followed.</summary>
         public Task SaveToLibraryAsync(IEnumerable<string> uris, CancellationToken ct = default) =>
             LibraryAsync(HttpMethod.Put, uris, ct);
 
-        /// <summary>Removes tracks from Liked Songs.</summary>
+        /// <summary>The reverse of <see cref="SaveToLibraryAsync"/>: unlike, remove the album, unfollow.</summary>
         public Task RemoveFromLibraryAsync(IEnumerable<string> uris, CancellationToken ct = default) =>
             LibraryAsync(HttpMethod.Delete, uris, ct);
+
+        /// <summary>For each URI, in order: liked, saved or followed.</summary>
+        public async Task<bool[]> LibraryContainsAsync(IList<string> uris, CancellationToken ct = default)
+        {
+            var result = new List<bool>();
+            for (var i = 0; i < uris.Count; i += MaxLibraryItemsPerRequest)
+            {
+                var chunk = uris.Skip(i).Take(MaxLibraryItemsPerRequest).ToList();
+                var page = await GetAsync<bool[]>("me/library/contains?uris=" + Uri.EscapeDataString(string.Join(",", chunk)), ct).ConfigureAwait(false);
+                result.AddRange(page != null && page.Length == chunk.Count ? page : new bool[chunk.Count]);
+            }
+            return result.ToArray();
+        }
 
         private async Task LibraryAsync(HttpMethod method, IEnumerable<string> uris, CancellationToken ct)
         {
@@ -280,6 +309,8 @@ namespace SpotiBee.Spotify
             accessToken = token.AccessToken;
             // Refresh a minute early to avoid racing expiry mid-request
             accessTokenExpiresUtc = DateTime.UtcNow.AddSeconds(Math.Max(60, token.ExpiresIn) - 60);
+            if (!string.IsNullOrWhiteSpace(token.Scope))
+                grantedScopes = new HashSet<string>(token.Scope.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
             if (!string.IsNullOrEmpty(token.RefreshToken) && token.RefreshToken != refreshToken)
             {
                 refreshToken = token.RefreshToken;

@@ -33,6 +33,11 @@ namespace SpotiBee.UI
         private readonly Label elapsed = new Label { TextAlign = ContentAlignment.MiddleLeft };
         private readonly Label duration = new Label { TextAlign = ContentAlignment.MiddleRight };
         private readonly Button shuffle, previous, playPause, next, repeat;
+        private readonly Button like, addToPlaylist, moreActions;
+        private readonly ContextMenuStrip playlistMenu = new ContextMenuStrip();
+        private readonly ContextMenuStrip moreMenu = new ContextMenuStrip();
+        private readonly TrackMenu playlistMenuFiller;
+        private readonly TrackMenu moreMenuFiller;
         private readonly ComboBox devices = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
         private readonly Label status = new Label { AutoEllipsis = true };
         private readonly Label source = new Label { TextAlign = ContentAlignment.MiddleCenter, AutoEllipsis = true };
@@ -52,6 +57,12 @@ namespace SpotiBee.UI
         private readonly LyricsView lyricsView = new LyricsView();
         private string lyricsTrackId;
         private System.Threading.CancellationTokenSource lyricsCancel;
+        private string likedTrackId;
+        private bool? liked;
+        private System.Threading.CancellationTokenSource likedCancel;
+        private SpotifyLibrary subscribedLibrary;
+        // Not like.Visible: that reads false whenever the panel itself is hidden
+        private bool showingTrackActions;
 
         public NowPlayingPanel(SpotiBeeController controller, SkinColours skin, Action openSettings, Action openSearch = null)
         {
@@ -99,6 +110,17 @@ namespace SpotiBee.UI
             playPause = IconButton("", "▶", "Play / pause", () => controller.PlayPauseAsync(), large: true);
             next = IconButton("", "▶|", "Next", () => controller.NextAsync());
             repeat = IconButton("", "R", "Repeat", () => controller.CycleRepeatAsync());
+
+            like = IconButton("\uE006", "♡", "Like on Spotify", ToggleLikeAsync);
+            addToPlaylist = IconButton("\uE710", "+", "Add to or remove from your Spotify playlists", ShowPlaylistMenuAsync);
+            moreActions = IconButton("\uE712", "…", "Album and artist", ShowMoreMenuAsync);
+            foreach (var button in new[] { like, addToPlaylist, moreActions })
+            {
+                button.Font = hasIconFont ? new Font(IconFontName, 9.5f) : new Font(skin.Font.FontFamily, 9f, FontStyle.Bold);
+                button.Visible = false;
+            }
+            playlistMenuFiller = new TrackMenu(controller, FindForm);
+            moreMenuFiller = new TrackMenu(controller, FindForm);
 
             tips.SetToolTip(title, "Open in Spotify");
             tips.SetToolTip(devices, "Spotify device");
@@ -155,6 +177,7 @@ namespace SpotiBee.UI
             {
                 disconnected, artwork, title, artist, album, seekBar, elapsed, duration,
                 shuffle, previous, playPause, next, repeat, searchButton, devices, mode, source, status, lyricsView,
+                like, addToPlaylist, moreActions,
             });
 
             ticker.Tick += (s, e) => UpdateProgress();
@@ -208,6 +231,17 @@ namespace SpotiBee.UI
             title.Bounds = new Rectangle(textLeft, pad + S(4), textWidth, line + S(2));
             artist.Bounds = new Rectangle(textLeft, title.Bottom + S(2), textWidth, line);
             album.Bounds = new Rectangle(textLeft, artist.Bottom, textWidth, line);
+            if (showingTrackActions)
+            {
+                // Track actions sit at the end of the album line, which gives up the room
+                var size = S(24);
+                var stripLeft = width - pad - size * 3;
+                var stripTop = album.Top + (album.Height - size) / 2;
+                like.Bounds = new Rectangle(stripLeft, stripTop, size, size);
+                addToPlaylist.Bounds = new Rectangle(like.Right, stripTop, size, size);
+                moreActions.Bounds = new Rectangle(addToPlaylist.Right, stripTop, size, size);
+                album.Width = Math.Max(0, stripLeft - S(4) - textLeft);
+            }
 
             seekBar.Bounds = new Rectangle(pad, artwork.Bottom + pad, Math.Max(0, width - pad * 2), S(14));
             var timeWidth = S(60);
@@ -242,7 +276,12 @@ namespace SpotiBee.UI
 
         // --- Controller events (may arrive on background threads) ---------
 
-        private void OnConnectionChanged() => Ui(ShowConnectionState);
+        private void OnConnectionChanged() => Ui(() =>
+        {
+            // Reconnecting may have granted new permissions, so look again
+            likedTrackId = null;
+            ShowConnectionState();
+        });
         private void OnRouterStateChanged() => Ui(() =>
         {
             UpdateRouteDisplay();
@@ -412,6 +451,136 @@ namespace SpotiBee.UI
             UpdateProgress();
             _ = LoadArtworkAsync(item.Artwork);
             UpdateLyrics();
+            UpdateTrackActions(item);
+        }
+
+        // --- Like, playlists, album and artist -------------------------------
+
+        private Track CurrentTrack
+        {
+            get
+            {
+                var item = snapshot?.State?.Item;
+                return item?.Id != null && item.Uri != null && item.IsTrack && !item.IsLocal ? item : null;
+            }
+        }
+
+        private void UpdateTrackActions(Track item)
+        {
+            var library = controller.SpotifyLibrary;
+            if (library != subscribedLibrary)
+            {
+                // The library arrives once MusicBee finishes starting, which can be after the panel exists
+                if (subscribedLibrary != null)
+                    subscribedLibrary.Changed -= OnLibraryChanged;
+                subscribedLibrary = library;
+                if (library != null)
+                    library.Changed += OnLibraryChanged;
+            }
+
+            var show = item != null && CurrentTrack == item && controller.IsConnected && library != null;
+            if (showingTrackActions != show)
+            {
+                showingTrackActions = show;
+                like.Visible = addToPlaylist.Visible = moreActions.Visible = show;
+                PerformLayout();
+            }
+            if (!show)
+            {
+                likedTrackId = null;
+                return;
+            }
+            if (item.Id == likedTrackId)
+                return;
+            likedTrackId = item.Id;
+            liked = null;
+            ShowLiked();
+            _ = RefreshLikedAsync(item);
+        }
+
+        private void OnLibraryChanged() => Ui(() =>
+        {
+            var item = CurrentTrack;
+            if (item != null && item.Id == likedTrackId)
+                _ = RefreshLikedAsync(item);
+        });
+
+        private async Task RefreshLikedAsync(Track item)
+        {
+            var library = controller.SpotifyLibrary;
+            if (library == null)
+                return;
+            likedCancel?.Cancel();
+            var cancel = likedCancel = new System.Threading.CancellationTokenSource();
+            try
+            {
+                var state = await library.GetStateAsync(new[] { item.Uri }, cancel.Token);
+                if (!IsDisposed && likedTrackId == item.Id && !cancel.IsCancellationRequested)
+                {
+                    liked = state.IsSaved(item.Uri);
+                    ShowLiked();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Log("Checking Liked Songs", ex);
+            }
+        }
+
+        private void ShowLiked()
+        {
+            var isLiked = liked == true;
+            SetIcon(like, isLiked ? "\uE00B" : "\uE006", isLiked ? "♥" : "♡");
+            like.ForeColor = isLiked ? skin.Accent : skin.Foreground;
+            tips.SetToolTip(like, isLiked ? "In your Liked Songs (click to remove)" : "Like on Spotify");
+        }
+
+        private async Task ToggleLikeAsync()
+        {
+            var item = CurrentTrack;
+            var library = controller.SpotifyLibrary;
+            if (item == null || library == null)
+                return;
+            var save = liked != true;
+            try
+            {
+                await library.SetSavedAsync(new[] { item.Uri }, save);
+                if (likedTrackId == item.Id)
+                {
+                    liked = save;
+                    ShowLiked();
+                }
+                controller.ShowStatus(save ? $"Liked \"{item.Name}\" on Spotify." : $"Removed \"{item.Name}\" from Liked Songs.");
+            }
+            catch (Exception ex)
+            {
+                Diagnostics.Log("Liking a track", ex);
+                controller.ShowStatus("Couldn't do that on Spotify: " + (ex is SpotifyApiException api ? api.FriendlyMessage : ex.Message));
+            }
+        }
+
+        private Task ShowPlaylistMenuAsync()
+        {
+            var item = CurrentTrack;
+            if (item == null)
+                return Task.CompletedTask;
+            // Filling puts something in the menu before its first wait, so there's something to show
+            var filling = playlistMenuFiller.FillPlaylistsAsync(playlistMenu.Items, new[] { item });
+            playlistMenu.Show(addToPlaylist, new Point(0, addToPlaylist.Height));
+            return filling;
+        }
+
+        private Task ShowMoreMenuAsync()
+        {
+            var item = CurrentTrack;
+            if (item == null)
+                return Task.CompletedTask;
+            var filling = moreMenuFiller.FillAlbumAndArtistAsync(moreMenu.Items, item);
+            moreMenu.Show(moreActions, new Point(0, moreActions.Height));
+            return filling;
         }
 
         // --- Lyrics -------------------------------------------------------
@@ -478,6 +647,7 @@ namespace SpotiBee.UI
         private void ShowNothingPlaying()
         {
             lyricsTrackId = null;
+            UpdateTrackActions(null);
             lyricsView.Visible = false;
             title.Text = controller.IsConnected ? "Nothing playing" : "";
             artist.Text = controller.IsConnected ? "Start something in Spotify or press play" : "";
@@ -647,6 +817,11 @@ namespace SpotiBee.UI
                     controller.Router.StateChanged -= OnRouterStateChanged;
                 ticker.Dispose();
                 lyricsCancel?.Cancel();
+                likedCancel?.Cancel();
+                if (subscribedLibrary != null)
+                    subscribedLibrary.Changed -= OnLibraryChanged;
+                playlistMenu.Dispose();
+                moreMenu.Dispose();
                 statusClear.Dispose();
                 tips.Dispose();
                 artwork.Image?.Dispose();

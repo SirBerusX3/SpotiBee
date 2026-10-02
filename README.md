@@ -119,6 +119,29 @@ looked up in Spotify's catalogue by title and artist, and the length must agree 
   filter.
 - Deleting the MusicBee playlist unlinks it but leaves the Spotify playlist alone, and vice versa.
 
+## Liking, playlists, albums and artists
+
+Next to the song on the panel:
+
+- **♥** likes the song on Spotify, or unlikes it if it's already in your Liked Songs (the heart is
+  filled).
+- **+** lists the Spotify playlists you own or collaborate on, with how many songs each has.
+  Ticked playlists already have the song: click one to remove it, or an unticked one to add it.
+- **…** saves the album to your library, follows the song's artists (features included), and
+  opens the album or artist in Spotify.
+
+The same actions are in MusicBee's right-click menu under **SpotiBee**, for any songs you
+select, your own files included. SpotiBee finds each song on Spotify first, the same way the
+playlist sync does.
+
+If you change a synced playlist or Liked Songs this way, the MusicBee copy catches up a couple
+of seconds later. SpotiBee remembers what's in each playlist and only fetches playlists that
+changed on Spotify since, so the menu opens quickly after the first time.
+
+Following artists needs a permission that versions before 0.6 didn't ask for. If you connected
+with an older version, SpotiBee offers to reconnect the first time you try. Your browser opens so
+you can approve it, and nothing else changes.
+
 ## Searching Spotify
 
 Click the search button on the panel (next to the device picker), or use **Tools → SpotiBee:
@@ -132,7 +155,7 @@ Search Spotify…** (also a hotkey). The window stays open while you use MusicBe
 - Songs you already own use your own file ("Your file" in the *In MusicBee* column). Anything
   else gets a placeholder on the spot.
 - Adding to a synced playlist reaches Spotify a few seconds later. Liked tracks appear in your
-  MusicBee Liked Songs at the next sync.
+  synced MusicBee Liked Songs a few seconds later too.
 - **More results** loads the next 10; Spotify returns at most 10 per search.
 
 ## Lyrics in the panel
@@ -237,6 +260,7 @@ src/SpotiBee/
   Playback/               Routing each track to MusicBee or Spotify and keeping them in sync
   UI/                     Panel, search, import/send/sync windows, settings, skin colours
   SyncScheduler.cs        When linked playlists sync
+  SpotifyLibrary.cs       Like, playlist, album and artist actions for the panel and right-click menu
   MusicBeeInterface.cs    MusicBee plugin API (copied unmodified from the SDK)
 ```
 
