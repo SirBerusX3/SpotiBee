@@ -4,16 +4,30 @@
 
 A MusicBee plugin that bridges MusicBee and Spotify.
 
-**Status: roadmap complete**: Spotify login, now-playing panel, controls, playlist import, playing
-Spotify tracks from MusicBee's queue, and two-way playlist sync including sending MusicBee
-playlists to Spotify, Spotify search, and library tidy-up.
+**What it does today:** Spotify login, a now-playing panel with controls and lyrics, playlist
+import, playing Spotify tracks from MusicBee's queue, two-way playlist sync (including sending
+MusicBee playlists to Spotify), Spotify search, liking and adding to playlists, and library tidy-up.
 
-Planned:
-1. ~~Connect + now playing + controls~~
-2. ~~Import Spotify playlists into MusicBee as placeholder tracks~~
-3. ~~Play placeholder tracks through Spotify, kept in sync with MusicBee's player~~
-4. ~~Lyrics for Spotify tracks via MusicBee's lyrics system~~ (works automatically: placeholders are real library files)
-5. ~~Two-way playlist sync, sending playlists to Spotify, search and add, library tidy-up~~
+## Roadmap
+
+**Next**
+- Select all / Select none in the import and send windows
+- A filter box for long playlist lists
+- Spotting new Spotify playlists and offering to import them
+- Managing linked playlists: see when each last synced, sync one, pause, or unlink
+- A notice on the panel when a new version is out
+
+**After that**
+- Importing your saved Spotify albums, so they show up in MusicBee's album view
+- A list of songs you only have on Spotify, grouped by album, that you can export
+- Copying a song's Spotify link
+
+**Later**
+- Easier first-time setup
+- Copying a diagnostics summary to paste into a forum post
+- Spotify's queue on the panel
+
+Plans change with feedback, so suggestions are welcome.
 
 Audio always plays through a Spotify client (desktop app, web player, phone or speaker).
 SpotiBee is a remote control; it never streams Spotify audio itself.
