@@ -82,6 +82,10 @@ click Import. Each one becomes a MusicBee playlist in a **Spotify** playlist fol
   ticked automatically, so importing again refreshes them all. **Select all** and **Select none**
   tick or untick the whole list.
 - Playlists created on Spotify since you last looked are marked **New on Spotify**.
+- Type in the **filter box** (Ctrl+F) to show only playlists whose names contain those words.
+  Select all and Select none then apply to what's shown. Ticked playlists the filter hides are
+  still imported, and the button says how many (e.g. *Import 5 playlists (2 hidden)*). Esc
+  clears the filter.
 
 **New Spotify playlists:** once you've linked at least one playlist, SpotiBee watches for new
 Spotify playlists you own or collaborate on. When one appears, a notice on the panel says so:
@@ -129,6 +133,7 @@ with when it last synced and what happened, including any errors. Select one or 
 ticked MusicBee playlist, including ones made entirely from your own files. Each local file is
 looked up in Spotify's catalogue by title and artist, and the length must agree within
 4 seconds. That lets you listen to your local playlists on devices that don't have the files.
+The window has the same filter box and Select all / Select none buttons as the import window.
 
 - Matching ignores release labels such as "(Album Version (Explicit))", "(Single Version /
   Mono)" and " - 2009 Remaster", album prefixes like "Led Zeppelin II - …", and artist nicknames
@@ -142,8 +147,9 @@ looked up in Spotify's catalogue by title and artist, and the length must agree 
   Spotify returned for each miss are in the diagnostics report.
 - Files Spotify didn't have aren't searched again for a week, or until matching improves in an
   update.
-- **Match by hand:** Tools → SpotiBee: Tracks Not Found on Spotify… (or *Match missing tracks…*
-  in the Send window) lists the misses. Choose one to search Spotify, with results showing how
+- **Match by hand:** Tools → SpotiBee: Tracks Not Found on Spotify… lists the misses from every
+  synced playlist; *Match missing tracks…* in the Send window lists just those from the playlists
+  you sent. Choose one to search Spotify, with results showing how
   each length compares to your file. Other songs are greyed out, and the closest-length version
   of the same song is preselected. Your choice is added to every
   synced playlist containing that file, and automatic matching never overrides it.

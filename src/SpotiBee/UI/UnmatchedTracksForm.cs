@@ -17,6 +17,8 @@ namespace SpotiBee.UI
         private readonly SpotiBeeController controller;
         private readonly IMusicBeeLibrary musicBee;
         private readonly SyncScheduler scheduler;
+        // MusicBee playlists to show tracks from; null for every linked playlist
+        private readonly HashSet<string> onlyPlaylists;
 
         private readonly ListView list = new ListView
         {
@@ -38,11 +40,18 @@ namespace SpotiBee.UI
             public LocalTrack Track;
         }
 
-        public UnmatchedTracksForm(SpotiBeeController controller, IMusicBeeLibrary musicBee, SyncScheduler scheduler)
+        /// <param name="onlyPlaylistUrls">
+        /// Only list tracks from these MusicBee playlists (e.g. the ones just sent to Spotify);
+        /// null lists every linked playlist's.
+        /// </param>
+        public UnmatchedTracksForm(SpotiBeeController controller, IMusicBeeLibrary musicBee, SyncScheduler scheduler,
+            IEnumerable<string> onlyPlaylistUrls = null)
         {
             this.controller = controller;
             this.musicBee = musicBee;
             this.scheduler = scheduler;
+            if (onlyPlaylistUrls != null)
+                onlyPlaylists = new HashSet<string>(onlyPlaylistUrls, StringComparer.OrdinalIgnoreCase);
 
             Text = "Tracks Not Found on Spotify";
             StartPosition = FormStartPosition.CenterParent;
@@ -59,7 +68,8 @@ namespace SpotiBee.UI
             {
                 Dock = DockStyle.Top,
                 Height = 40,
-                Text = "These tracks in your synced playlists weren't matched on Spotify automatically, usually because " +
+                Text = (onlyPlaylists == null ? "These tracks in your synced playlists" : "These tracks in the playlists you just sent") +
+                       " weren't matched on Spotify automatically, usually because " +
                        "your copy is a noticeably different edit. Choose a Spotify track to use for one, and it's added to those playlists.",
             };
 
@@ -86,8 +96,10 @@ namespace SpotiBee.UI
 
         private void Reload()
         {
-            // Which linked playlists each unmatched file appears in
+            // Which linked playlists each unmatched file appears in (all of them, since a hand match
+            // applies everywhere), and which files belong to the playlists this window is about
             var playlistsByFile = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+            var inScope = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var link in controller.Store.Playlists)
             {
                 if (!musicBee.PlaylistExists(link.MusicBeePlaylistUrl))
@@ -97,6 +109,8 @@ namespace SpotiBee.UI
                     if (!playlistsByFile.TryGetValue(file, out var names))
                         playlistsByFile[file] = names = new List<string>();
                     names.Add(link.MusicBeeName ?? link.Name);
+                    if (onlyPlaylists == null || onlyPlaylists.Contains(link.MusicBeePlaylistUrl))
+                        inScope.Add(file);
                 }
             }
 
@@ -104,7 +118,7 @@ namespace SpotiBee.UI
             list.Items.Clear();
             foreach (var file in controller.Store.UnmatchedPaths)
             {
-                if (!playlistsByFile.TryGetValue(file, out var names) || controller.Store.FindByPath(file) != null)
+                if (!inScope.Contains(file) || !playlistsByFile.TryGetValue(file, out var names) || controller.Store.FindByPath(file) != null)
                     continue;
                 var track = musicBee.GetTrack(file);
                 var label = track == null || string.IsNullOrWhiteSpace(track.Title)
@@ -122,8 +136,10 @@ namespace SpotiBee.UI
             if (list.Items.Count > 0)
                 list.Items[0].Selected = true;
             status.Text = list.Items.Count == 0
-                ? "Every track in your synced playlists is matched on Spotify (or has no Spotify version)."
-                : $"{list.Items.Count} track(s) not matched.";
+                ? (onlyPlaylists == null ? "Every track in your synced playlists" : "Every track in the playlists you just sent") +
+                  " is matched on Spotify (or has no Spotify version)."
+                : $"{list.Items.Count} track(s) not matched." +
+                  (onlyPlaylists == null ? "" : " Tools > SpotiBee: Tracks Not Found on Spotify lists those from every synced playlist.");
         }
 
         private void Choose()

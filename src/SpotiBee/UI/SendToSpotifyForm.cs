@@ -42,6 +42,11 @@ namespace SpotiBee.UI
         private readonly Button selectAll = new Button { Text = "Select all", AutoSize = true, Enabled = false };
         private readonly Button selectNone = new Button { Text = "Select none", AutoSize = true, Enabled = false };
         private CancellationTokenSource running;
+        // MusicBee playlists from the latest send that have tracks Spotify didn't have
+        private readonly List<string> lastSendWithMisses = new List<string>();
+        private readonly ToolTip tips = new ToolTip();
+        private readonly FilterBox filterBox = new FilterBox { Width = 280, Hint = "Filter by name (Ctrl+F)", Margin = new Padding(0, 0, 0, 6) };
+        private readonly ListFilter filter;
 
         public SendToSpotifyForm(SpotiBeeController controller, IMusicBeeLibrary musicBee, SyncScheduler scheduler)
         {
@@ -72,12 +77,15 @@ namespace SpotiBee.UI
             list.Columns.Add("MusicBee playlist", 320);
             list.Columns.Add("Tracks", 60, HorizontalAlignment.Right);
             list.Columns.Add("Status", 280);
+            filter = new ListFilter(list, filterBox);
             list.ItemCheck += (s, e) =>
             {
-                if (running != null)
+                if (!filter.Changing && running != null)
                     e.NewValue = e.CurrentValue;
             };
-            list.ItemChecked += (s, e) => UpdateSendButton();
+            filter.CheckedChanged += UpdateSendButton;
+            var filterRow = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false };
+            filterRow.Controls.Add(filterBox);
             list.Resize += (s, e) => list.Columns[2].Width = Math.Max(160, list.ClientSize.Width - 320 - 60 - 4);
 
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(0, 8, 0, 0) };
@@ -87,7 +95,7 @@ namespace SpotiBee.UI
             buttons.Controls.Add(close);
             matchMissing.Click += (s, e) =>
             {
-                using var form = new UnmatchedTracksForm(controller, musicBee, scheduler);
+                using var form = new UnmatchedTracksForm(controller, musicBee, scheduler, lastSendWithMisses);
                 form.ShowDialog(this);
             };
             var selection = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
@@ -101,6 +109,7 @@ namespace SpotiBee.UI
             bottom.Controls.Add(progressBar);
 
             Controls.Add(list);
+            Controls.Add(filterRow);
             Controls.Add(details);
             Controls.Add(intro);
             Controls.Add(bottom);
@@ -122,7 +131,7 @@ namespace SpotiBee.UI
                 .OrderBy(p => p.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
-            list.BeginUpdate();
+            var items = new List<ListViewItem>();
             foreach (var (url, name) in candidates)
             {
                 var auto = musicBee.IsAutoPlaylist(url);
@@ -133,31 +142,38 @@ namespace SpotiBee.UI
                     auto ? "Auto-playlist: changes only go MusicBee → Spotify" : "",
                 })
                 { Tag = url };
-                list.Items.Add(item);
+                items.Add(item);
             }
-            list.EndUpdate();
+            filter.SetItems(items);
             UpdateSendButton();
             status.Text = candidates.Count == 0
                 ? "Every MusicBee playlist is already linked to Spotify."
                 : $"{candidates.Count} playlists not yet on Spotify.";
         }
 
+        /// <summary>Ticks or unticks the rows the filter is showing.</summary>
         private void SetAllChecked(bool value)
         {
             list.BeginUpdate();
-            foreach (ListViewItem item in list.Items)
-                item.Checked = value;
+            foreach (var item in list.Items.Cast<ListViewItem>().ToList())
+                filter.SetChecked(item, value);
             list.EndUpdate();
         }
 
         private void UpdateSendButton()
         {
             selectAll.Enabled = selectNone.Enabled = running == null && list.Items.Count > 0;
+            filterBox.Enabled = running == null;
             if (running != null)
                 return;
-            var count = list.CheckedItems.Count;
+            var count = filter.CheckedItems.Count;
+            var hidden = filter.HiddenCheckedCount;
             send.Enabled = count > 0;
-            send.Text = count > 1 ? $"Send {count} playlists" : "Send to Spotify";
+            send.Text = (count > 1 || hidden > 0 ? $"Send {count} playlist{(count == 1 ? "" : "s")}" : "Send to Spotify") +
+                        (hidden > 0 ? $" ({hidden} hidden)" : "");
+            tips.SetToolTip(send, hidden > 0
+                ? $"{hidden} ticked playlist{(hidden == 1 ? " is" : "s are")} hidden by the filter and will be sent too."
+                : null);
         }
 
         private async void OnSendClicked(object sender, EventArgs e)
@@ -169,12 +185,14 @@ namespace SpotiBee.UI
                 return;
             }
 
-            var items = list.CheckedItems.Cast<ListViewItem>().ToList();
+            var items = filter.CheckedItems;
             running = new CancellationTokenSource();
             send.Text = "Cancel";
             close.Enabled = false;
             UpdateSendButton();
             details.Visible = false;
+            matchMissing.Visible = false;
+            lastSendWithMisses.Clear();
             var progress = new Progress<ImportProgress>(p =>
             {
                 status.Text = p.Message;
@@ -198,11 +216,13 @@ namespace SpotiBee.UI
                     {
                         var outcome = await scheduler.SendToSpotifyAsync((string)item.Tag, progress, running.Token);
                         sent++;
-                        item.Checked = false;
+                        filter.SetChecked(item, false);
                         item.ForeColor = SystemColors.GrayText;
                         item.SubItems[2].Text = $"On Spotify: {outcome.SentToSpotify} tracks" +
                                                 (outcome.Unmatched.Count > 0 ? $", {outcome.Unmatched.Count} not on Spotify" : "");
                         unmatched.AddRange(outcome.Unmatched.Select(u => $"{item.Text}: {u}"));
+                        if (outcome.Unmatched.Count > 0)
+                            lastSendWithMisses.Add((string)item.Tag);
                     }
                     catch (Exception ex) when (!(ex is OperationCanceledException))
                     {
@@ -234,6 +254,17 @@ namespace SpotiBee.UI
             }
         }
 
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.F))
+            {
+                filterBox.Focus();
+                filterBox.SelectAll();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             if (running != null)
@@ -243,6 +274,13 @@ namespace SpotiBee.UI
                 return;
             }
             base.OnFormClosing(e);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                tips.Dispose();
+            base.Dispose(disposing);
         }
     }
 }

@@ -33,6 +33,8 @@ namespace SpotiBee.UI
         private readonly Button selectAll = new Button { Text = "Select all", AutoSize = true, Enabled = false };
         private readonly Button selectNone = new Button { Text = "Select none", AutoSize = true, Enabled = false };
         private readonly ToolTip tips = new ToolTip();
+        private readonly FilterBox filterBox = new FilterBox { Width = 280, Hint = "Filter by name (Ctrl+F)", Margin = new Padding(0, 0, 0, 6) };
+        private readonly ListFilter filter;
         private CancellationTokenSource running;
         private readonly bool tickNewOnly;
 
@@ -87,12 +89,15 @@ namespace SpotiBee.UI
             list.Columns.Add("Tracks", 60, HorizontalAlignment.Right);
             list.Columns.Add("Owner", 120);
             list.Columns.Add("Status", 200);
+            filter = new ListFilter(list, filterBox);
             list.ItemCheck += (s, e) =>
             {
-                if (running != null || !((Row)list.Items[e.Index].Tag).Importable)
+                if (!filter.Changing && (running != null || !((Row)list.Items[e.Index].Tag).Importable))
                     e.NewValue = e.CurrentValue;
             };
-            list.ItemChecked += (s, e) => UpdateImportButton();
+            filter.CheckedChanged += UpdateImportButton;
+            var filterRow = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false };
+            filterRow.Controls.Add(filterBox);
             list.Resize += (s, e) => list.Columns[3].Width = Math.Max(120, list.ClientSize.Width - 300 - 60 - 120 - 4);
 
             var bottom = new Panel { Dock = DockStyle.Bottom, Height = 44, Padding = new Padding(0, 8, 0, 0) };
@@ -110,6 +115,7 @@ namespace SpotiBee.UI
             bottom.Controls.Add(progressBar);
 
             Controls.Add(list);
+            Controls.Add(filterRow);
             Controls.Add(restriction);
             Controls.Add(intro);
             Controls.Add(bottom);
@@ -146,9 +152,10 @@ namespace SpotiBee.UI
             var store = controller.Store;
             // Before the first listing every playlist would look new
             var spotNew = store.HasSeenPlaylists;
-            list.BeginUpdate();
-            list.Items.Clear();
-            AddRow(new Row { Source = ImportSource.LikedSongs(), Importable = true }, "", "You");
+            var items = new List<ListViewItem>
+            {
+                MakeRow(new Row { Source = ImportSource.LikedSongs(), Importable = true }, "", "You"),
+            };
             foreach (var p in playlists.Where(p => p != null && p.Id != null))
             {
                 var mine = p.Owner?.Id == me?.Id;
@@ -159,28 +166,28 @@ namespace SpotiBee.UI
                     IsNew = spotNew && !store.HasSeenPlaylist(p.Id),
                     Reason = mine || p.Collaborative ? null : "Owned by someone else",
                 };
-                AddRow(row, p.ItemCount.ToString(), mine ? "You" : p.Owner?.DisplayName ?? p.Owner?.Id ?? "");
+                items.Add(MakeRow(row, p.ItemCount.ToString(), mine ? "You" : p.Owner?.DisplayName ?? p.Owner?.Id ?? ""));
             }
-            list.EndUpdate();
-            if (tickNewOnly && list.CheckedItems.Count > 0)
-                list.CheckedItems[0].EnsureVisible();
+            filter.SetItems(items);
+            if (tickNewOnly)
+                filter.CheckedItems.FirstOrDefault(i => i.ListView != null)?.EnsureVisible();
 
             // Everything listed has now been seen, so the panel stops announcing it
-            var newNames = list.Items.Cast<ListViewItem>().Select(i => (Row)i.Tag).Where(r => r.IsNew).Select(r => "\"" + r.Source.Name + "\"").ToList();
+            var newNames = filter.AllItems.Select(i => (Row)i.Tag).Where(r => r.IsNew).Select(r => "\"" + r.Source.Name + "\"").ToList();
             if (newNames.Count > 0)
                 Diagnostics.Log("New playlists: shown in the import window, so no longer new: " + string.Join(", ", newNames));
             store.MarkPlaylistsSeen(playlists.Where(p => p?.Id != null).Select(p => p.Id));
             try { store.Save(); }
             catch (Exception ex) { Diagnostics.Log("Saving library", ex); }
 
-            var importable = list.Items.Cast<ListViewItem>().Count(i => ((Row)i.Tag).Importable);
-            var fresh = list.Items.Cast<ListViewItem>().Count(i => ((Row)i.Tag).IsNew && ((Row)i.Tag).Importable);
+            var importable = filter.AllItems.Count(i => ((Row)i.Tag).Importable);
+            var fresh = filter.AllItems.Count(i => ((Row)i.Tag).IsNew && ((Row)i.Tag).Importable);
             status.Text = $"{playlists.Length} playlists, {importable} importable (including Liked Songs)" +
                           (fresh > 0 ? $", {fresh} new." : ".");
             UpdateImportButton();
         }
 
-        private void AddRow(Row row, string tracks, string owner)
+        private ListViewItem MakeRow(Row row, string tracks, string owner)
         {
             var previous = controller.Store.GetPlaylist(row.Source.Id);
             var item = new ListViewItem(new[]
@@ -200,26 +207,32 @@ namespace SpotiBee.UI
             };
             if (!row.Importable)
                 item.ForeColor = SystemColors.GrayText;
-            list.Items.Add(item);
+            return item;
         }
 
+        /// <summary>Ticks or unticks the rows the filter is showing.</summary>
         private void SetAllChecked(bool value)
         {
             list.BeginUpdate();
-            foreach (ListViewItem item in list.Items)
-                if (((Row)item.Tag).Importable)
-                    item.Checked = value;
+            foreach (var item in list.Items.Cast<ListViewItem>().Where(i => ((Row)i.Tag).Importable).ToList())
+                filter.SetChecked(item, value);
             list.EndUpdate();
         }
 
         private void UpdateImportButton()
         {
             selectAll.Enabled = selectNone.Enabled = running == null && list.Items.Count > 0;
+            filterBox.Enabled = running == null;
             if (running != null)
                 return;
-            var count = list.CheckedItems.Count;
+            var count = filter.CheckedItems.Count;
+            var hidden = filter.HiddenCheckedCount;
             import.Enabled = count > 0;
-            import.Text = count > 1 ? $"Import {count} playlists" : "Import";
+            import.Text = (count > 1 || hidden > 0 ? $"Import {count} playlist{(count == 1 ? "" : "s")}" : "Import") +
+                          (hidden > 0 ? $" ({hidden} hidden)" : "");
+            tips.SetToolTip(import, hidden > 0
+                ? $"{hidden} ticked playlist{(hidden == 1 ? " is" : "s are")} hidden by the filter and will be imported too."
+                : null);
         }
 
         private async void OnImportClicked(object sender, EventArgs e)
@@ -237,7 +250,7 @@ namespace SpotiBee.UI
                 return;
             }
 
-            var items = list.CheckedItems.Cast<ListViewItem>().ToList();
+            var items = filter.CheckedItems;
             running = new CancellationTokenSource();
             import.Text = "Cancel";
             close.Enabled = false;
@@ -283,7 +296,7 @@ namespace SpotiBee.UI
                     {
                         failures++;
                         row.Importable = false;
-                        item.Checked = false;
+                        filter.SetChecked(item, false);
                         item.ForeColor = SystemColors.GrayText;
                         item.SubItems[3].Text = "Spotify won't share this playlist's tracks";
                     }
@@ -312,6 +325,17 @@ namespace SpotiBee.UI
                 progressBar.Value = 0;
                 UpdateImportButton();
             }
+        }
+
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.F))
+            {
+                filterBox.Focus();
+                filterBox.SelectAll();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
