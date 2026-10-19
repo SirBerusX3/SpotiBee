@@ -4,6 +4,32 @@ All notable changes to SpotiBee are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may change behaviour.
 
+## [0.7.0] – 2026-10-19
+
+### Added
+- **New Spotify playlists are spotted.** Once you've linked at least one playlist, a notice on the
+  panel tells you when a playlist you own or collaborate on appears on Spotify. Click it to open
+  the import window with just the new playlists ticked, or ✕ to ignore them. Or tick **Import new
+  Spotify playlists automatically** in settings.
+- **Linked Playlists window** (Tools menu and the panel header menu): when each linked playlist
+  last synced and what happened, with **Sync now**, **Pause sync** / **Resume sync**, **Unlink**
+  (both playlists are kept) and **Open in Spotify**.
+- **Update notice:** SpotiBee checks GitHub once a day and shows a notice on the panel when a newer
+  version is out. ✕ hides it until the next one. It can be turned off in settings.
+- **Filter box** in the import and send windows (Ctrl+F). Ticked playlists the filter hides still
+  count, and the button says how many.
+- **Select all** and **Select none** in the import and send windows. With a filter, they apply to
+  the playlists shown.
+- The import window marks playlists created since you last looked as **New on Spotify**.
+
+### Changed
+- **Match missing tracks…** in the Send window now lists only the tracks from the playlists you
+  just sent. Tools → SpotiBee: Tracks Not Found on Spotify still lists them all.
+
+### Fixed
+- Playlists just sent to Spotify stayed ticked in the Send window, so clicking Send again could
+  create a second copy on Spotify.
+
 ## [0.6.0] – 2026-10-02
 
 ### Added
@@ -188,6 +214,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - No third-party DLLs, only .NET Framework assemblies, so SpotiBee can't clash with other
   MusicBee plugins.
 
+[0.7.0]: #070--2026-10-19
 [0.6.0]: #060--2026-10-02
 [0.5.0]: #050--2026-10-01
 [0.4.0]: #040--2026-09-30

@@ -6,26 +6,26 @@ A MusicBee plugin that bridges MusicBee and Spotify.
 
 **What it does today:** Spotify login, a now-playing panel with controls and lyrics, playlist
 import, playing Spotify tracks from MusicBee's queue, two-way playlist sync (including sending
-MusicBee playlists to Spotify), Spotify search, liking and adding to playlists, and library tidy-up.
+MusicBee playlists to Spotify), Spotify search, liking and adding to playlists, library tidy-up,
+alerts for new Spotify playlists and new SpotiBee versions, and a window for managing linked playlists.
 
 ## Roadmap
 
 **Next**
-- Select all / Select none in the import and send windows
-- A filter box for long playlist lists
-- Spotting new Spotify playlists and offering to import them
-- Managing linked playlists: see when each last synced, sync one, pause, or unlink
-- A notice on the panel when a new version is out
-
-**After that**
 - Importing your saved Spotify albums, so they show up in MusicBee's album view
 - A list of songs you only have on Spotify, grouped by album, that you can export
 - Copying a song's Spotify link
 
-**Later**
+**After that**
 - Easier first-time setup
 - Copying a diagnostics summary to paste into a forum post
+
+**Later**
 - Spotify's queue on the panel
+
+**Done in 0.7:** alerts for new Spotify playlists, a Linked Playlists window (sync, pause, unlink),
+an update notice, and a filter box with Select all / Select none in the import and send windows.
+See the [CHANGELOG](CHANGELOG.md) for everything.
 
 Plans change with feedback, so suggestions are welcome.
 
