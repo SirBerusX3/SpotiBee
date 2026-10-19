@@ -40,6 +40,20 @@ namespace SpotiBee
         /// <summary>Linked playlists sync automatically unless this is set.</summary>
         [DataMember] public bool DisableAutoSync { get; set; }
 
+        /// <summary>New Spotify playlists are imported without asking when this is set.</summary>
+        [DataMember] public bool AutoImportNewPlaylists { get; set; }
+
+        /// <summary>SpotiBee looks for a newer release once a day unless this is set.</summary>
+        [DataMember] public bool DisableUpdateCheck { get; set; }
+
+        // The last update check's result, so it's shown again at startup without asking GitHub
+        [DataMember] public DateTime? LastUpdateCheckUtc { get; set; }
+        [DataMember] public string LatestReleaseTag { get; set; }
+        [DataMember] public string LatestReleaseUrl { get; set; }
+
+        /// <summary>The release whose notice the user hid; a newer one is shown again.</summary>
+        [DataMember] public string DismissedReleaseTag { get; set; }
+
         // Mute SpotiBee applied to MusicBee's player, persisted so it can be undone after a crash
         [DataMember] public bool MuteAppliedBySpotiBee { get; set; }
 

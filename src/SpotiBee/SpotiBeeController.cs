@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -153,6 +154,55 @@ namespace SpotiBee
 
         /// <summary>Shows a message in the panel's status line.</summary>
         public void ShowStatus(string message) => StatusMessage?.Invoke(message);
+
+        // --- Notices ---------------------------------------------------------
+
+        private readonly List<PanelNotice> notices = new List<PanelNotice>();
+
+        /// <summary>Raised when a notice is shown or cleared, possibly on a background thread.</summary>
+        public event Action NoticesChanged;
+
+        /// <summary>The notice the panel shows (the newest one); null when there's none.</summary>
+        public PanelNotice CurrentNotice
+        {
+            get
+            {
+                lock (notices)
+                    return notices.LastOrDefault();
+            }
+        }
+
+        /// <summary>
+        /// Shows a notice on the panel, replacing any with the same key. Different wording counts as
+        /// news and goes to the front; the same notice repeated (e.g. an hourly check) keeps its place.
+        /// </summary>
+        public void ShowNotice(PanelNotice notice)
+        {
+            lock (notices)
+            {
+                var index = notices.FindIndex(n => n.Key == notice.Key);
+                if (index >= 0 && notices[index].Text == notice.Text)
+                {
+                    notices[index] = notice;
+                }
+                else
+                {
+                    if (index >= 0)
+                        notices.RemoveAt(index);
+                    notices.Add(notice);
+                }
+            }
+            NoticesChanged?.Invoke();
+        }
+
+        public void ClearNotice(string key)
+        {
+            bool removed;
+            lock (notices)
+                removed = notices.RemoveAll(n => n.Key == key) > 0;
+            if (removed)
+                NoticesChanged?.Invoke();
+        }
 
         public void OpenSpotifyApp()
         {

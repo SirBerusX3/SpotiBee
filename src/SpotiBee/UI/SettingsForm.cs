@@ -22,6 +22,8 @@ namespace SpotiBee.UI
         private readonly TextBox placeholderFolder = new TextBox();
         private readonly Button browse = new Button { Text = "Browse…", AutoSize = true };
         private readonly CheckBox autoSync = new CheckBox { Text = "Keep linked playlists in sync with Spotify automatically", AutoSize = true };
+        private readonly CheckBox autoImport = new CheckBox { Text = "Import new Spotify playlists automatically", AutoSize = true };
+        private readonly CheckBox updateCheck = new CheckBox { Text = "Tell me when a new version of SpotiBee is out", AutoSize = true };
         private readonly ToolTip tips = new ToolTip();
         private CancellationTokenSource loginCancel;
 
@@ -109,9 +111,24 @@ namespace SpotiBee.UI
             layout.Controls.Add(autoSync, 0, 5);
             layout.SetColumnSpan(autoSync, 3);
 
+            autoImport.Checked = controller.Settings.AutoImportNewPlaylists;
+            tips.SetToolTip(autoImport,
+                "Playlists you create on Spotify (or start collaborating on) are imported and linked\n" +
+                "at the next sync, instead of a notice on the panel asking first.\n" +
+                "SpotiBee only looks for new playlists once you've linked at least one.");
+            layout.Controls.Add(autoImport, 0, 6);
+            layout.SetColumnSpan(autoImport, 3);
+
+            updateCheck.Checked = !controller.Settings.DisableUpdateCheck;
+            tips.SetToolTip(updateCheck,
+                $"You have SpotiBee {typeof(SettingsForm).Assembly.GetName().Version.ToString(3)}.\n" +
+                "Checks GitHub once a day and shows a notice on the panel. Only the version number is sent.");
+            layout.Controls.Add(updateCheck, 0, 7);
+            layout.SetColumnSpan(updateCheck, 3);
+
             var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Dock = DockStyle.Fill };
             buttons.Controls.Add(close);
-            layout.Controls.Add(buttons, 0, 6);
+            layout.Controls.Add(buttons, 0, 8);
             layout.SetColumnSpan(buttons, 3);
 
             Controls.Add(layout);
@@ -210,10 +227,14 @@ namespace SpotiBee.UI
                 ? null
                 : folder;
             var disableAutoSync = !autoSync.Checked;
-            if (chosen != controller.Settings.PlaceholderFolder || disableAutoSync != controller.Settings.DisableAutoSync)
+            var disableUpdateCheck = !updateCheck.Checked;
+            if (chosen != controller.Settings.PlaceholderFolder || disableAutoSync != controller.Settings.DisableAutoSync ||
+                autoImport.Checked != controller.Settings.AutoImportNewPlaylists || disableUpdateCheck != controller.Settings.DisableUpdateCheck)
             {
                 controller.Settings.PlaceholderFolder = chosen;
                 controller.Settings.DisableAutoSync = disableAutoSync;
+                controller.Settings.AutoImportNewPlaylists = autoImport.Checked;
+                controller.Settings.DisableUpdateCheck = disableUpdateCheck;
                 try { controller.Settings.Save(); }
                 catch (Exception ex) { MessageBox.Show(this, "Couldn't save settings: " + ex.Message, "SpotiBee"); }
             }

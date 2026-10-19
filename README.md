@@ -79,7 +79,15 @@ click Import. Each one becomes a MusicBee playlist in a **Spotify** playlist fol
   tagged with the Spotify track's details. Placeholders are added to your library and stored in
   `Music\SpotiBee\Artist\Album\`.
 - Re-importing updates the same MusicBee playlist in place. Previously imported playlists are
-  ticked automatically, so importing again refreshes them all.
+  ticked automatically, so importing again refreshes them all. **Select all** and **Select none**
+  tick or untick the whole list.
+- Playlists created on Spotify since you last looked are marked **New on Spotify**.
+
+**New Spotify playlists:** once you've linked at least one playlist, SpotiBee watches for new
+Spotify playlists you own or collaborate on. When one appears, a notice on the panel says so:
+click it to open the import window, or click ✕ to ignore it. If you'd rather not be asked, tick
+**Import new Spotify playlists automatically** in settings. New playlists are then imported and
+linked at the next sync.
 
 To hide placeholders from a view, filter on **Encoder is SpotiBee**, or on the path containing
 `\Music\SpotiBee\`.
@@ -104,6 +112,16 @@ Every imported playlist, and every playlist you send to Spotify, stays **linked*
 - Liked Songs syncs too. Adding to or removing from the MusicBee copy likes or unlikes the
   song on Spotify.
 - Turn automatic sync off in settings if you only want to sync on demand.
+
+**Tools → SpotiBee: Linked Playlists…** (or the panel header menu) lists every linked playlist
+with when it last synced and what happened, including any errors. Select one or more to:
+
+- **Sync now**, even if paused.
+- **Pause sync** to leave a playlist alone for a while. Automatic sync skips it, and when you
+  resume, changes made on either side in the meantime are merged as usual.
+- **Unlink** to stop syncing for good. Both the MusicBee and the Spotify playlist are kept as
+  they are. Importing from Spotify again links them again.
+- **Open in Spotify**.
 
 ### Sending MusicBee playlists to Spotify
 
@@ -238,13 +256,21 @@ queue, progress bar and play counts behave normally. The panel shows **MusicBee 
   Unmuting switches that track back to your file. SpotiBee never unmutes a mute you set yourself.
 - If MusicBee closes unexpectedly, a mute SpotiBee applied is undone the next time it starts.
 
+## Updates
+
+SpotiBee checks once a day for a newer release on GitHub. When there is one, a notice on the
+panel links to the download page; ✕ hides it until the next version. Only SpotiBee's version
+number is sent. Turn it off with **Tell me when a new version of SpotiBee is out** in settings.
+
 ## Where things are stored
 
 In `%APPDATA%\MusicBee\SpotiBee\`:
-- `settings.json` holds the Client ID, preferred device, placeholder folder, and the refresh
-  token. The token is encrypted with Windows DPAPI for your Windows user account.
-- `library.json` links Spotify tracks to their placeholder and/or local file, and records
-  which MusicBee playlist each import became. Your music files' tags are never changed.
+- `settings.json` holds the Client ID, preferred device, placeholder folder, your choices in
+  settings, the last update check, and the refresh token. The token is encrypted with Windows
+  DPAPI for your Windows user account.
+- `library.json` links Spotify tracks to their placeholder and/or local file, records which
+  MusicBee playlist each import became, and which Spotify playlists you've already been told
+  about. Your music files' tags are never changed.
 
 Disconnecting removes the token; uninstalling the plugin from MusicBee deletes the folder.
 Placeholder files are left alone, because they're part of your MusicBee library.
@@ -272,8 +298,9 @@ src/SpotiBee/
   Spotify/                Web API client, PKCE auth, playback polling, JSON models
   Library/                Playlist import, local matching, placeholder files, track store
   Playback/               Routing each track to MusicBee or Spotify and keeping them in sync
-  UI/                     Panel, search, import/send/sync windows, settings, skin colours
-  SyncScheduler.cs        When linked playlists sync
+  UI/                     Panel, search, import/send/sync/linked-playlist windows, settings, skin colours
+  SyncScheduler.cs        When linked playlists sync, and spotting new Spotify playlists
+  UpdateChecker.cs        Daily check for a newer release on GitHub
   SpotifyLibrary.cs       Like, playlist, album and artist actions for the panel and right-click menu
   MusicBeeInterface.cs    MusicBee plugin API (copied unmodified from the SDK)
 ```

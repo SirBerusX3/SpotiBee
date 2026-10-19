@@ -18,6 +18,8 @@ namespace SpotiBee.Library
         private Dictionary<string, PlaylistRecord> playlists = new Dictionary<string, PlaylistRecord>(StringComparer.Ordinal);
         private Dictionary<string, TrackRecord> byPath;
         private readonly Dictionary<string, (DateTime When, int Version)> unmatched = new Dictionary<string, (DateTime, int)>(StringComparer.OrdinalIgnoreCase);
+        // Spotify playlists the user has been told about; null until the first listing
+        private HashSet<string> seenPlaylists;
 
         public TrackStore(string filePath)
         {
@@ -89,6 +91,37 @@ namespace SpotiBee.Library
         {
             lock (sync)
                 return playlists.Values.FirstOrDefault(p => string.Equals(p.MusicBeePlaylistUrl, url, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// False until the user's Spotify playlists have been listed once. Until then every
+        /// playlist would look new, so nothing should be announced.
+        /// </summary>
+        public bool HasSeenPlaylists
+        {
+            get
+            {
+                lock (sync)
+                    return seenPlaylists != null;
+            }
+        }
+
+        public bool HasSeenPlaylist(string spotifyPlaylistId)
+        {
+            lock (sync)
+                return seenPlaylists != null && seenPlaylists.Contains(spotifyPlaylistId);
+        }
+
+        /// <summary>Records that these Spotify playlists have been shown, so they're no longer "new".</summary>
+        public void MarkPlaylistsSeen(IEnumerable<string> spotifyPlaylistIds)
+        {
+            lock (sync)
+            {
+                seenPlaylists ??= new HashSet<string>(StringComparer.Ordinal);
+                foreach (var id in spotifyPlaylistIds)
+                    if (!string.IsNullOrEmpty(id))
+                        seenPlaylists.Add(id);
+            }
         }
 
         /// <summary>True if this local file was searched for on Spotify recently without a match.</summary>
@@ -185,6 +218,7 @@ namespace SpotiBee.Library
                     Tracks = tracks.Values.ToList(),
                     Playlists = playlists.Values.ToList(),
                     Unmatched = unmatched.Select(u => new UnmatchedFile { Path = u.Key, CheckedUtc = u.Value.When, MatcherVersion = u.Value.Version }).ToList(),
+                    SeenPlaylists = seenPlaylists?.ToList(),
                 };
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath));
@@ -209,6 +243,8 @@ namespace SpotiBee.Library
             foreach (var u in data.Unmatched ?? new List<UnmatchedFile>())
                 if (!string.IsNullOrEmpty(u.Path))
                     unmatched[u.Path] = (u.CheckedUtc, u.MatcherVersion);
+            if (data.SeenPlaylists != null)
+                seenPlaylists = new HashSet<string>(data.SeenPlaylists, StringComparer.Ordinal);
         }
 
         [DataContract]
@@ -218,6 +254,7 @@ namespace SpotiBee.Library
             [DataMember] public List<TrackRecord> Tracks { get; set; }
             [DataMember] public List<PlaylistRecord> Playlists { get; set; }
             [DataMember] public List<UnmatchedFile> Unmatched { get; set; }
+            [DataMember] public List<string> SeenPlaylists { get; set; }
         }
 
         [DataContract]
@@ -281,6 +318,12 @@ namespace SpotiBee.Library
 
         /// <summary>The Spotify playlist has episodes or Spotify local files, which sync must leave in place.</summary>
         [DataMember] public bool HasUnsyncableItems { get; set; }
+
+        /// <summary>Automatic sync leaves this playlist alone; syncing it by hand still works.</summary>
+        [DataMember] public bool SyncPaused { get; set; }
+
+        /// <summary>What the last sync did ("up to date", "2 added in MusicBee", "Failed: …").</summary>
+        [DataMember] public string LastResult { get; set; }
 
         public bool IsLikedSongs => SpotifyId == LikedSongsId;
     }

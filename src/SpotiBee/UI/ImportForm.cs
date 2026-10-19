@@ -30,18 +30,27 @@ namespace SpotiBee.UI
         private readonly Label status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
         private readonly Button import = new Button { Text = "Import", AutoSize = true, Enabled = false };
         private readonly Button close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel };
+        private readonly Button selectAll = new Button { Text = "Select all", AutoSize = true, Enabled = false };
+        private readonly Button selectNone = new Button { Text = "Select none", AutoSize = true, Enabled = false };
         private readonly ToolTip tips = new ToolTip();
         private CancellationTokenSource running;
+        private readonly bool tickNewOnly;
 
         private sealed class Row
         {
             public ImportSource Source;
             public bool Importable;
+            public bool IsNew;
             public string Reason;
         }
 
-        public ImportForm(SpotiBeeController controller, IMusicBeeLibrary musicBee, SyncScheduler scheduler = null)
+        /// <param name="tickNewOnly">
+        /// Tick only playlists that are new on Spotify (opened from the "new playlist" notice),
+        /// instead of the previously imported ones.
+        /// </param>
+        public ImportForm(SpotiBeeController controller, IMusicBeeLibrary musicBee, SyncScheduler scheduler = null, bool tickNewOnly = false)
         {
+            this.tickNewOnly = tickNewOnly;
             this.controller = controller;
             this.musicBee = musicBee;
             this.scheduler = scheduler;
@@ -90,7 +99,13 @@ namespace SpotiBee.UI
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
             buttons.Controls.Add(import);
             buttons.Controls.Add(close);
+            var selection = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
+            selection.Controls.Add(selectAll);
+            selection.Controls.Add(selectNone);
+            selectAll.Click += (s, e) => SetAllChecked(true);
+            selectNone.Click += (s, e) => SetAllChecked(false);
             bottom.Controls.Add(status);
+            bottom.Controls.Add(selection);
             bottom.Controls.Add(buttons);
             bottom.Controls.Add(progressBar);
 
@@ -128,6 +143,9 @@ namespace SpotiBee.UI
             if (IsDisposed)
                 return;
 
+            var store = controller.Store;
+            // Before the first listing every playlist would look new
+            var spotNew = store.HasSeenPlaylists;
             list.BeginUpdate();
             list.Items.Clear();
             AddRow(new Row { Source = ImportSource.LikedSongs(), Importable = true }, "", "You");
@@ -138,14 +156,27 @@ namespace SpotiBee.UI
                 {
                     Source = ImportSource.From(p),
                     Importable = mine || p.Collaborative,
+                    IsNew = spotNew && !store.HasSeenPlaylist(p.Id),
                     Reason = mine || p.Collaborative ? null : "Owned by someone else",
                 };
                 AddRow(row, p.ItemCount.ToString(), mine ? "You" : p.Owner?.DisplayName ?? p.Owner?.Id ?? "");
             }
             list.EndUpdate();
+            if (tickNewOnly && list.CheckedItems.Count > 0)
+                list.CheckedItems[0].EnsureVisible();
+
+            // Everything listed has now been seen, so the panel stops announcing it
+            var newNames = list.Items.Cast<ListViewItem>().Select(i => (Row)i.Tag).Where(r => r.IsNew).Select(r => "\"" + r.Source.Name + "\"").ToList();
+            if (newNames.Count > 0)
+                Diagnostics.Log("New playlists: shown in the import window, so no longer new: " + string.Join(", ", newNames));
+            store.MarkPlaylistsSeen(playlists.Where(p => p?.Id != null).Select(p => p.Id));
+            try { store.Save(); }
+            catch (Exception ex) { Diagnostics.Log("Saving library", ex); }
 
             var importable = list.Items.Cast<ListViewItem>().Count(i => ((Row)i.Tag).Importable);
-            status.Text = $"{playlists.Length} playlists, {importable} importable (including Liked Songs).";
+            var fresh = list.Items.Cast<ListViewItem>().Count(i => ((Row)i.Tag).IsNew && ((Row)i.Tag).Importable);
+            status.Text = $"{playlists.Length} playlists, {importable} importable (including Liked Songs)" +
+                          (fresh > 0 ? $", {fresh} new." : ".");
             UpdateImportButton();
         }
 
@@ -157,22 +188,33 @@ namespace SpotiBee.UI
                 row.Source.Name,
                 tracks,
                 owner,
-                row.Reason ?? (previous == null ? "" :
+                row.Reason ?? (previous == null ? (row.IsNew ? "New on Spotify" : "") :
                     "Linked, last synced " + (previous.LastSyncedUtc > previous.LastImportedUtc ? previous.LastSyncedUtc : previous.LastImportedUtc)
                         .ToLocalTime().ToString("g")),
             })
             {
                 Tag = row,
-                // Previously imported playlists start ticked, so re-running refreshes them
-                Checked = row.Importable && previous != null,
+                // Previously imported playlists start ticked, so re-running refreshes them;
+                // from the new-playlist notice, only the new ones are
+                Checked = row.Importable && (tickNewOnly ? row.IsNew : previous != null),
             };
             if (!row.Importable)
                 item.ForeColor = SystemColors.GrayText;
             list.Items.Add(item);
         }
 
+        private void SetAllChecked(bool value)
+        {
+            list.BeginUpdate();
+            foreach (ListViewItem item in list.Items)
+                if (((Row)item.Tag).Importable)
+                    item.Checked = value;
+            list.EndUpdate();
+        }
+
         private void UpdateImportButton()
         {
+            selectAll.Enabled = selectNone.Enabled = running == null && list.Items.Count > 0;
             if (running != null)
                 return;
             var count = list.CheckedItems.Count;
@@ -199,6 +241,7 @@ namespace SpotiBee.UI
             running = new CancellationTokenSource();
             import.Text = "Cancel";
             close.Enabled = false;
+            UpdateImportButton();
 
             var placeholders = new PlaceholderWriter(controller.Http, controller.Settings.EffectivePlaceholderFolder);
             var importer = new PlaylistImporter(client, musicBee, controller.Store, placeholders);

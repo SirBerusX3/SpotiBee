@@ -39,6 +39,8 @@ namespace SpotiBee.UI
         private readonly Button send = new Button { Text = "Send to Spotify", AutoSize = true, Enabled = false };
         private readonly Button matchMissing = new Button { Text = "Match missing tracks…", AutoSize = true, Visible = false };
         private readonly Button close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel };
+        private readonly Button selectAll = new Button { Text = "Select all", AutoSize = true, Enabled = false };
+        private readonly Button selectNone = new Button { Text = "Select none", AutoSize = true, Enabled = false };
         private CancellationTokenSource running;
 
         public SendToSpotifyForm(SpotiBeeController controller, IMusicBeeLibrary musicBee, SyncScheduler scheduler)
@@ -88,7 +90,13 @@ namespace SpotiBee.UI
                 using var form = new UnmatchedTracksForm(controller, musicBee, scheduler);
                 form.ShowDialog(this);
             };
+            var selection = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false };
+            selection.Controls.Add(selectAll);
+            selection.Controls.Add(selectNone);
+            selectAll.Click += (s, e) => SetAllChecked(true);
+            selectNone.Click += (s, e) => SetAllChecked(false);
             bottom.Controls.Add(status);
+            bottom.Controls.Add(selection);
             bottom.Controls.Add(buttons);
             bottom.Controls.Add(progressBar);
 
@@ -128,13 +136,23 @@ namespace SpotiBee.UI
                 list.Items.Add(item);
             }
             list.EndUpdate();
+            UpdateSendButton();
             status.Text = candidates.Count == 0
                 ? "Every MusicBee playlist is already linked to Spotify."
                 : $"{candidates.Count} playlists not yet on Spotify.";
         }
 
+        private void SetAllChecked(bool value)
+        {
+            list.BeginUpdate();
+            foreach (ListViewItem item in list.Items)
+                item.Checked = value;
+            list.EndUpdate();
+        }
+
         private void UpdateSendButton()
         {
+            selectAll.Enabled = selectNone.Enabled = running == null && list.Items.Count > 0;
             if (running != null)
                 return;
             var count = list.CheckedItems.Count;
@@ -155,6 +173,7 @@ namespace SpotiBee.UI
             running = new CancellationTokenSource();
             send.Text = "Cancel";
             close.Enabled = false;
+            UpdateSendButton();
             details.Visible = false;
             var progress = new Progress<ImportProgress>(p =>
             {

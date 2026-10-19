@@ -40,6 +40,10 @@ namespace SpotiBee.UI
         private readonly TrackMenu moreMenuFiller;
         private readonly ComboBox devices = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, FlatStyle = FlatStyle.Flat };
         private readonly Label status = new Label { AutoEllipsis = true };
+        // A notice ("new version out", "new playlists") shares the status line, giving way to status messages
+        private readonly Label notice = new Label { AutoEllipsis = true, Cursor = Cursors.Hand, Visible = false, UseMnemonic = false };
+        private readonly Label noticeClose = new Label { Text = "✕", TextAlign = ContentAlignment.MiddleCenter, Cursor = Cursors.Hand, Visible = false };
+        private PanelNotice shownNotice;
         private readonly Label source = new Label { TextAlign = ContentAlignment.MiddleCenter, AutoEllipsis = true };
         private readonly Button searchButton = new Button { FlatStyle = FlatStyle.Flat, TabStop = false, Cursor = Cursors.Hand, UseMnemonic = false };
         private readonly Button mode = new Button { FlatStyle = FlatStyle.Flat, TabStop = false, Cursor = Cursors.Hand, UseMnemonic = false };
@@ -93,6 +97,27 @@ namespace SpotiBee.UI
             elapsed.Font = duration.Font = new Font(skin.Font.FontFamily, Math.Max(7f, skin.Font.Size - 1f));
             status.ForeColor = skin.Dim;
             status.Font = elapsed.Font;
+            notice.ForeColor = skin.Accent;
+            notice.Font = elapsed.Font;
+            noticeClose.ForeColor = skin.Dim;
+            noticeClose.Font = elapsed.Font;
+            notice.Click += (s, e) =>
+            {
+                var n = shownNotice;
+                if (n == null)
+                    return;
+                controller.ClearNotice(n.Key);
+                n.Clicked?.Invoke();
+            };
+            noticeClose.Click += (s, e) =>
+            {
+                var n = shownNotice;
+                if (n == null)
+                    return;
+                controller.ClearNotice(n.Key);
+                n.Dismissed?.Invoke();
+            };
+            tips.SetToolTip(noticeClose, "Hide");
             lyricsView.BackColor = skin.Background;
             lyricsView.ForeColor = skin.Foreground;
             lyricsView.DimColor = skin.Dim;
@@ -176,16 +201,17 @@ namespace SpotiBee.UI
             Controls.AddRange(new Control[]
             {
                 disconnected, artwork, title, artist, album, seekBar, elapsed, duration,
-                shuffle, previous, playPause, next, repeat, searchButton, devices, mode, source, status, lyricsView,
+                shuffle, previous, playPause, next, repeat, searchButton, devices, mode, source, status, notice, noticeClose, lyricsView,
                 like, addToPlaylist, moreActions,
             });
 
             ticker.Tick += (s, e) => UpdateProgress();
-            statusClear.Tick += (s, e) => { statusClear.Stop(); status.Text = ""; };
+            statusClear.Tick += (s, e) => { statusClear.Stop(); status.Text = ""; UpdateNotice(); };
 
             controller.ConnectionChanged += OnConnectionChanged;
             controller.PlaybackUpdated += OnPlaybackUpdated;
             controller.StatusMessage += OnStatusMessage;
+            controller.NoticesChanged += OnNoticesChanged;
 
             ShowConnectionState();
             if (controller.LastSnapshot != null)
@@ -195,6 +221,7 @@ namespace SpotiBee.UI
             ticker.Start();
             initialised = true;
             UpdateRouteDisplay();
+            UpdateNotice();
             PerformLayout();
             Diagnostics.Log($"Panel #{id} constructed");
         }
@@ -269,6 +296,9 @@ namespace SpotiBee.UI
             devices.Bounds = new Rectangle(searchButton.Right + S(4), comboTop, Math.Max(0, width - pad * 3 - modeWidth - searchWidth - S(4)), devices.Height);
             mode.Bounds = new Rectangle(devices.Right + pad, comboTop, modeWidth, devices.Height);
             status.Bounds = new Rectangle(pad, devices.Bottom + S(4), Math.Max(0, width - pad * 2), S(16));
+            var closeWidth = S(16);
+            notice.Bounds = new Rectangle(pad, status.Top, Math.Max(0, status.Width - closeWidth), status.Height);
+            noticeClose.Bounds = new Rectangle(notice.Right, status.Top, closeWidth, status.Height);
             var lyricsTop = status.Bottom + S(4);
             lyricsView.Bounds = new Rectangle(pad, lyricsTop, Math.Max(0, width - pad * 2), Math.Max(0, ClientSize.Height - lyricsTop - pad));
             lyricsView.Visible = ShowingLyrics && lyricsView.Height >= S(40);
@@ -319,7 +349,20 @@ namespace SpotiBee.UI
             tips.SetToolTip(status, message);
             statusClear.Stop();
             statusClear.Start();
+            UpdateNotice();
         });
+        private void OnNoticesChanged() => Ui(UpdateNotice);
+
+        /// <summary>Shows the current notice in the status line, unless a status message is using it.</summary>
+        private void UpdateNotice()
+        {
+            shownNotice = controller.CurrentNotice;
+            var show = shownNotice != null && string.IsNullOrEmpty(status.Text);
+            notice.Text = shownNotice?.Text ?? "";
+            tips.SetToolTip(notice, shownNotice?.ToolTip);
+            notice.Visible = noticeClose.Visible = show;
+            status.Visible = !show;
+        }
 
         private void Ui(Action action)
         {
@@ -813,6 +856,7 @@ namespace SpotiBee.UI
                 controller.ConnectionChanged -= OnConnectionChanged;
                 controller.PlaybackUpdated -= OnPlaybackUpdated;
                 controller.StatusMessage -= OnStatusMessage;
+                controller.NoticesChanged -= OnNoticesChanged;
                 if (controller.Router != null)
                     controller.Router.StateChanged -= OnRouterStateChanged;
                 ticker.Dispose();

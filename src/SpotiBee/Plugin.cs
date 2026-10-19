@@ -15,6 +15,8 @@ namespace MusicBeePlugin
     public partial class Plugin
     {
         private const string PluginName = "SpotiBee";
+        private const string UpdateNoticeKey = "update";
+        private const string NewPlaylistsNoticeKey = "new-playlists";
 
         private MusicBeeApiInterface mbApiInterface;
         private readonly PluginInfo about = new PluginInfo();
@@ -85,6 +87,8 @@ namespace MusicBeePlugin
             syncTimer?.Dispose();
             tidyTimer?.Dispose();
             tidyTimer = null;
+            updateTimer?.Dispose();
+            updateTimer = null;
             playlistSync?.Dispose();
             playlistSync = null;
             syncTimer = null;
@@ -171,12 +175,23 @@ namespace MusicBeePlugin
                 controller.Lyrics = new LyricsService(controller.Http, library, controller.Store);
                 NowPlayingPanel.RefreshLyricsSetting();
                 playlistSync = new SyncScheduler(controller, library);
+                playlistSync.NewPlaylistsFound += OnNewPlaylistsFound;
                 playlistSync.Start();
                 controller.SpotifyLibrary = new SpotifyLibrary(controller, library, playlistSync, Path.Combine(storageDir, "playlists.json"));
 
                 tidyTimer = new System.Windows.Forms.Timer { Interval = 1000 };
                 tidyTimer.Tick += (s, e) => UpgradeAddedFiles();
                 tidyTimer.Start();
+
+                // First look a minute after startup, then hourly; the checker itself asks GitHub at most daily
+                updates = new UpdateChecker(controller.Http, controller.Settings, typeof(Plugin).Assembly.GetName().Version);
+                updateTimer = new System.Windows.Forms.Timer { Interval = 60 * 1000 };
+                updateTimer.Tick += (s, e) =>
+                {
+                    updateTimer.Interval = 60 * 60 * 1000;
+                    CheckForUpdate();
+                };
+                updateTimer.Start();
 
                 // MusicBee may already be playing (e.g. resumed on startup)
                 var state = player.PlayState;
@@ -288,6 +303,7 @@ namespace MusicBeePlugin
                 new ToolStripMenuItem("Import Spotify playlists…", null, (s, e) => ShowImport()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Send playlists to Spotify…", null, (s, e) => ShowSendToSpotify()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Sync playlists now", null, (s, e) => SyncNow()) { Enabled = controller.IsConnected },
+                new ToolStripMenuItem("Linked playlists…", null, (s, e) => ShowLinked()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Open Spotify", null, (s, e) => controller.OpenSpotifyApp()),
             };
         }
@@ -303,6 +319,7 @@ namespace MusicBeePlugin
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Import Spotify Playlists…", null, (s, e) => ShowImport());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Send Playlists to Spotify…", null, (s, e) => ShowSendToSpotify());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Sync Playlists Now", "SpotiBee: Sync Playlists Now", (s, e) => SyncNow());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Linked Playlists…", null, (s, e) => ShowLinked());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Tracks Not Found on Spotify…", null, (s, e) => ShowUnmatched());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Clean Up Unused Placeholders…", null, (s, e) => CleanUpPlaceholders());
 
@@ -363,17 +380,99 @@ namespace MusicBeePlugin
         {
             using var form = new SettingsForm(controller);
             form.ShowDialog(MainWindow);
+            // The update setting may have changed: hide the notice, or look again
+            CheckForUpdate();
         }
 
-        private void ShowImport()
+        private void ShowImport() => ShowImport(tickNewOnly: false);
+
+        private void ShowImport(bool tickNewOnly)
         {
             if (!controller.IsConnected)
             {
                 ShowSettings();
                 return;
             }
-            using var form = new ImportForm(controller, library ?? new MusicBeeLibrary(mbApiInterface), playlistSync);
+            using var form = new ImportForm(controller, library ?? new MusicBeeLibrary(mbApiInterface), playlistSync, tickNewOnly);
             form.ShowDialog(MainWindow);
+            // The window marks every playlist it listed as seen
+            controller.ClearNotice(NewPlaylistsNoticeKey);
+        }
+
+        private void ShowLinked()
+        {
+            if (!controller.IsConnected || playlistSync == null)
+            {
+                ShowSettings();
+                return;
+            }
+            using var form = new LinkedPlaylistsForm(controller, playlistSync);
+            form.ShowDialog(MainWindow);
+        }
+
+        private void OnNewPlaylistsFound(IReadOnlyList<SpotiBee.Spotify.Playlist> playlists)
+        {
+            var names = playlists.Select(p => p.Name).ToList();
+            controller.ShowNotice(new PanelNotice
+            {
+                Key = NewPlaylistsNoticeKey,
+                Text = names.Count == 1
+                    ? $"New Spotify playlist \"{names[0]}\": click to import"
+                    : $"{names.Count} new Spotify playlists: click to import",
+                ToolTip = string.Join("\n", names.Take(15)) + (names.Count > 15 ? $"\n…and {names.Count - 15} more" : "") +
+                          "\n\n✕ hides this until there's another new one",
+                Clicked = () => ShowImport(tickNewOnly: true),
+                Dismissed = () =>
+                {
+                    controller.Store.MarkPlaylistsSeen(playlists.Select(p => p.Id));
+                    try { controller.Store.Save(); }
+                    catch (Exception ex) { Diagnostics.Log("Saving library", ex); }
+                },
+            });
+        }
+
+        private UpdateChecker updates;
+        private System.Windows.Forms.Timer updateTimer;
+        // Clicked through to the download page: don't bring the notice back every hour this session
+        private string updateOpenedTag;
+
+        private async void CheckForUpdate()
+        {
+            if (updates == null || controller == null)
+                return;
+            try
+            {
+                var release = await updates.CheckAsync();
+                if (controller == null)
+                    return;
+                if (release == null || release.Tag == updateOpenedTag)
+                {
+                    controller.ClearNotice(UpdateNoticeKey);
+                    return;
+                }
+                controller.ShowNotice(new PanelNotice
+                {
+                    Key = UpdateNoticeKey,
+                    Text = $"SpotiBee {release.Version} is out: click to download",
+                    ToolTip = $"You have {updates.Current}. Opens the download page.\n✕ hides this until the next version.",
+                    Clicked = () =>
+                    {
+                        updateOpenedTag = release.Tag;
+                        try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(release.Url) { UseShellExecute = true }); }
+                        catch (Exception ex) { Diagnostics.Log("Opening the release page", ex); }
+                    },
+                    Dismissed = () =>
+                    {
+                        try { updates.Dismiss(release); }
+                        catch (Exception ex) { Diagnostics.Log("Saving settings", ex); }
+                    },
+                });
+            }
+            catch (Exception ex)
+            {
+                // Offline or GitHub unavailable: try again next time, quietly
+                Diagnostics.Log("Checking for updates", ex);
+            }
         }
 
         private void ShowSendToSpotify()

@@ -186,6 +186,7 @@ namespace SpotiBee.Library
             if (!mbChanged && !spChanged)
             {
                 link.LastSyncedUtc = DateTime.UtcNow;
+                link.LastResult = outcome.Summary;
                 store.Save();
                 return outcome;
             }
@@ -247,6 +248,7 @@ namespace SpotiBee.Library
 
             link.TrackIds = final;
             link.LastSyncedUtc = DateTime.UtcNow;
+            link.LastResult = outcome.Summary;
             store.SetPlaylist(link);
             store.Save();
             return outcome;
