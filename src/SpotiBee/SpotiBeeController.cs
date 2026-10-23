@@ -20,6 +20,9 @@ namespace SpotiBee
     public sealed class SpotiBeeController : IDisposable
     {
         private readonly HttpClient http;
+        // Spotify track ID → album URI, for playing a track within its album
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> albumUris =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, string>(StringComparer.Ordinal);
         private SpotifyClient client;
         private PlaybackMonitor monitor;
         private bool fastPolling;
@@ -253,6 +256,12 @@ namespace SpotiBee
 
             public bool IsConnected => owner.client != null;
 
+            /// <remarks>
+            /// Some Spotify apps (the Windows desktop app, October 2026) accept a lone track but play
+            /// nothing or their own last song, yet do play it when asked for it within its album.
+            /// Every play is checked; a device that only works the album way is remembered and asked
+            /// that way first from then on.
+            /// </remarks>
             public async Task PlayTrackAsync(string uri, int positionMs)
             {
                 var c = Client;
@@ -261,6 +270,17 @@ namespace SpotiBee
                     device = (await owner.PickDeviceAsync(c))?.Id;
                 if (device == null)
                     throw new SpotifyApiException(HttpStatusCode.NotFound, "No Spotify devices available", "NO_ACTIVE_DEVICE");
+
+                var albumFirst = owner.Settings.AlbumPlayDevices?.Contains(device) == true;
+                PlaybackState state;
+                if (albumFirst)
+                {
+                    state = await TryAlbumAsync(c, uri, device, positionMs);
+                    if (Done(state, uri))
+                        return;
+                    Diagnostics.Log($"Play check: {DescribeDevice(state, device)} didn't play {uri} within its album (playing {Describe(state)}); asking for the track alone");
+                }
+
                 try
                 {
                     await c.PlayUrisAsync(new[] { uri }, device, positionMs);
@@ -271,10 +291,125 @@ namespace SpotiBee
                     var fallback = await owner.PickDeviceAsync(c);
                     if (fallback == null || fallback.Id == device)
                         throw;
-                    await c.PlayUrisAsync(new[] { uri }, fallback.Id, positionMs);
+                    device = fallback.Id;
+                    await c.PlayUrisAsync(new[] { uri }, device, positionMs);
                 }
+                state = await WaitForTrackAsync(c, uri);
+                if (Done(state, uri))
+                {
+                    if (albumFirst)
+                        RememberAlbumPlay(device, false, state);
+                    return;
+                }
+
+                if (!albumFirst)
+                {
+                    Diagnostics.Log($"Play check: asked {DescribeDevice(state, device)} for {uri}, it's playing {Describe(state)}. Asking for it within its album");
+                    state = await TryAlbumAsync(c, uri, device, positionMs);
+                    if (Done(state, uri))
+                    {
+                        RememberAlbumPlay(device, true, state);
+                        return;
+                    }
+                }
+
+                // Last resort: wake the device with a transfer, then ask for the track once more
+                Diagnostics.Log($"Play check: still playing {Describe(state)}. Waking the device and asking again");
+                try { await c.TransferPlaybackAsync(device, play: false); }
+                catch (SpotifyApiException ex) { Diagnostics.Log("Play check: waking the device failed: " + ex.Message); }
+                await Task.Delay(800);
+                await c.PlayUrisAsync(new[] { uri }, device, positionMs);
+                state = await WaitForTrackAsync(c, uri);
+                if (Done(state, uri))
+                    return;
+
+                Diagnostics.Log($"Play check: gave up; {DescribeDevice(state, device)} is playing {Describe(state)}");
                 owner.monitor?.RequestRefresh();
+                throw new SpotifyApiException(HttpStatusCode.Conflict,
+                    $"Spotify on {DescribeDevice(state, device)} played its own last song instead of the one asked for. " +
+                    "Try restarting the Spotify app, or pick another device", "WRONG_TRACK");
             }
+
+            private bool Done(PlaybackState state, string uri)
+            {
+                if (!IsTrack(state?.Item, uri))
+                    return false;
+                owner.monitor?.RequestRefresh();
+                return true;
+            }
+
+            /// <summary>Plays the track within its album and waits to see it playing. Returns the last state seen.</summary>
+            private async Task<PlaybackState> TryAlbumAsync(SpotifyClient c, string uri, string device, int positionMs)
+            {
+                var id = uri.Substring(uri.LastIndexOf(':') + 1);
+                if (!owner.albumUris.TryGetValue(id, out var album))
+                {
+                    album = (await c.GetTrackAsync(id))?.Album?.Uri;
+                    owner.albumUris[id] = album;
+                }
+                if (album == null)
+                    return null;
+                try
+                {
+                    await c.PlayInContextAsync(album, uri, device, positionMs);
+                }
+                catch (SpotifyApiException)
+                {
+                    // e.g. the album isn't available here, or the device went away; asking for the
+                    // lone track may still work, and finds another device if needed
+                    return null;
+                }
+                return await WaitForTrackAsync(c, uri);
+            }
+
+            private void RememberAlbumPlay(string device, bool albumOnly, PlaybackState state)
+            {
+                var list = owner.Settings.AlbumPlayDevices ??= new List<string>();
+                if (albumOnly == list.Contains(device))
+                    return;
+                if (albumOnly)
+                    list.Add(device);
+                else
+                    list.Remove(device);
+                Diagnostics.Log(albumOnly
+                    ? $"Play check: {DescribeDevice(state, device)} only plays tracks asked for within their album; asking it that way from now on"
+                    : $"Play check: {DescribeDevice(state, device)} plays lone tracks again; asking it that way from now on");
+                owner.SaveSettings();
+            }
+
+            /// <summary>Polls Spotify for up to a few seconds until it reports this track; returns the last state seen.</summary>
+            private async Task<PlaybackState> WaitForTrackAsync(SpotifyClient c, string uri)
+            {
+                PlaybackState state = null;
+                for (var i = 0; i < 6; i++)
+                {
+                    await Task.Delay(500);
+                    try { state = await c.GetPlaybackStateAsync(); }
+                    catch (SpotifyApiException) { continue; }
+                    if (IsTrack(state?.Item, uri))
+                        break;
+                }
+                return state;
+            }
+
+            // Spotify may play a relinked copy (another release of the same recording), so the
+            // title and length count as a match too
+            private bool IsTrack(Track item, string uri)
+            {
+                if (item == null)
+                    return false;
+                if (item.Uri == uri)
+                    return true;
+                var record = owner.Store.GetTrack(uri.Substring(uri.LastIndexOf(':') + 1));
+                return record != null && string.Equals(item.Name, record.Title, StringComparison.OrdinalIgnoreCase) &&
+                       Math.Abs(item.DurationMs - record.DurationMs) < 2000;
+            }
+
+            private static string Describe(PlaybackState state) =>
+                state?.Item == null ? "nothing" : $"\"{state.Item.Name}\" ({(state.IsPlaying ? "playing" : "paused")})";
+
+            private static string DescribeDevice(PlaybackState state, string deviceId) =>
+                state?.Device?.Name ?? "device " + deviceId;
 
             public async Task PauseAsync()
             {
@@ -380,6 +515,9 @@ namespace SpotiBee
                 case SpotifyAuthException auth:
                     StatusMessage?.Invoke(auth.Message);
                     break;
+                case SpotifyApiException api when api.IsRestrictionViolated:
+                    StatusMessage?.Invoke(ExplainRestriction());
+                    break;
                 case SpotifyApiException api:
                     StatusMessage?.Invoke(api.FriendlyMessage);
                     break;
@@ -393,7 +531,32 @@ namespace SpotiBee
             }
         }
 
-        private async Task LoadUserAsync()
+        /// <summary>
+        /// Why Spotify answered "Restriction violated", as far as the last playback state says:
+        /// the device doesn't accept remote control, or what's playing doesn't allow that action.
+        /// </summary>
+        private string ExplainRestriction()
+        {
+            var state = LastSnapshot?.State;
+            var device = state?.Device?.Name ?? "the active device";
+            if (state?.Device?.IsRestricted == true)
+                return $"Spotify on {device} isn't accepting remote control right now. Try restarting the Spotify app there, or pick another device.";
+            var blocked = state?.Actions?.Disallows?.ToString();
+            if (!string.IsNullOrEmpty(blocked))
+                return $"Spotify on {device} doesn't allow {blocked} for what's playing right now.";
+            return $"Spotify on {device} refused that (\"Restriction violated\"). If it keeps happening, restart the Spotify app or pick another device.";
+        }
+
+        /// <summary>The connected account, loading it if that didn't work at startup. Null if it can't be loaded.</summary>
+        public async Task<UserProfile> GetUserAsync()
+        {
+            if (User != null || client == null)
+                return User;
+            await LoadUserAsync(report: false);
+            return User;
+        }
+
+        private async Task LoadUserAsync(bool report = true)
         {
             var c = client;
             if (c == null)
@@ -401,13 +564,17 @@ namespace SpotiBee
             try
             {
                 User = await c.GetCurrentUserAsync();
+                if (User == null)
+                    Diagnostics.Log("Loading your Spotify account: Spotify sent nothing back");
                 ConnectionChanged?.Invoke();
                 if (User?.IsPremium == false)
                     StatusMessage?.Invoke("This account isn't Premium. Spotify only allows playback control for Premium accounts.");
             }
             catch (Exception ex)
             {
-                Report(ex);
+                Diagnostics.Log("Loading your Spotify account", ex);
+                if (report)
+                    Report(ex);
             }
         }
 

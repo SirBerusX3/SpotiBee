@@ -74,6 +74,11 @@ namespace SpotiBee.Spotify
         public Task PlayAsync(string deviceId = null) =>
             SendAsync(HttpMethod.Put, WithDevice("me/player/play", deviceId), null);
 
+        /// <summary>Plays a track as part of an album or playlist, starting at that track.</summary>
+        public Task PlayInContextAsync(string contextUri, string trackUri, string deviceId = null, int? positionMs = null) =>
+            SendAsync(HttpMethod.Put, WithDevice("me/player/play", deviceId),
+                Json.Stringify(new PlayRequest { ContextUri = contextUri, Offset = new PlayOffset { Uri = trackUri }, PositionMs = positionMs }));
+
         public Task PlayUrisAsync(IEnumerable<string> uris, string deviceId = null, int? positionMs = null) =>
             SendAsync(HttpMethod.Put, WithDevice("me/player/play", deviceId),
                 Json.Stringify(new PlayRequest { Uris = uris.ToArray(), PositionMs = positionMs }));
@@ -278,6 +283,10 @@ namespace SpotiBee.Spotify
                 }
 
                 Json.TryParse<ApiErrorEnvelope>(body, out var envelope);
+                // Some of these are expected (pausing something already paused), but they're what
+                // a diagnostics report needs when Spotify refuses things
+                Diagnostics.Log($"Spotify {method} {path}: {(int)response.StatusCode} " +
+                                $"{envelope?.Error?.Reason ?? response.ReasonPhrase} {envelope?.Error?.Message}".TrimEnd());
                 throw new SpotifyApiException(response.StatusCode,
                     envelope?.Error?.Message ?? $"Spotify returned {(int)response.StatusCode} {response.ReasonPhrase}",
                     envelope?.Error?.Reason);
@@ -347,6 +356,10 @@ namespace SpotiBee.Spotify
 
         public bool IsNoActiveDevice => Reason == "NO_ACTIVE_DEVICE" || StatusCode == HttpStatusCode.NotFound;
 
+        /// <summary>Spotify's 403 "Player command failed: Restriction violated".</summary>
+        public bool IsRestrictionViolated =>
+            StatusCode == HttpStatusCode.Forbidden && (Message ?? "").IndexOf("Restriction violated", StringComparison.OrdinalIgnoreCase) >= 0;
+
         public string FriendlyMessage
         {
             get
@@ -355,6 +368,8 @@ namespace SpotiBee.Spotify
                     return "Spotify Premium is required to control playback.";
                 if (IsNoActiveDevice)
                     return "No active Spotify device. Open Spotify or pick a device.";
+                if (Reason == "WRONG_TRACK")
+                    return Message;
                 if (Reason == "RATE_LIMITED")
                     return "Spotify is rate limiting requests. Slowing down…";
                 if (StatusCode == HttpStatusCode.Forbidden)

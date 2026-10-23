@@ -490,7 +490,16 @@ namespace SpotiBee.Playback
             var uri = currentRecord.Uri;
             _ = Try(async () =>
             {
-                await spotify.PlayTrackAsync(uri, positionMs);
+                playsInFlight++;
+                try
+                {
+                    await spotify.PlayTrackAsync(uri, positionMs);
+                }
+                finally
+                {
+                    playsInFlight--;
+                    graceUntil = now() + CommandGrace;
+                }
                 if (gen != generation)
                     return;
                 if (mb.PlayState != PlayState.Playing)
@@ -573,7 +582,11 @@ namespace SpotiBee.Playback
 
         // --- Helpers -----------------------------------------------------
 
-        private bool InGrace => now() < graceUntil;
+        // A play command can take several seconds when Spotify needs asking twice; until it's
+        // done, a different song on Spotify is the old one, not the user choosing something else
+        private int playsInFlight;
+
+        private bool InGrace => playsInFlight > 0 || now() < graceUntil;
 
         private void MirrorToMusicBee(PlayState target)
         {

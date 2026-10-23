@@ -343,8 +343,26 @@ namespace MusicBeePlugin
             }
         }
 
-        private void SaveDiagnostics()
+        private async void SaveDiagnostics()
         {
+            // What Spotify says about each device, and whether it accepts remote control
+            var deviceLines = new List<string>();
+            try
+            {
+                var c = controller?.Client;
+                if (c != null)
+                {
+                    await controller.GetUserAsync();
+                    foreach (var d in await c.GetDevicesAsync())
+                        deviceLines.Add($"  {d.Name} ({d.Type}) active={d.IsActive} restricted={d.IsRestricted} " +
+                                        $"id={(d.Id == null ? "none" : d.Id.Substring(0, Math.Min(8, d.Id.Length)) + "…")}");
+                }
+            }
+            catch (Exception ex)
+            {
+                deviceLines.Add("  Couldn't list devices: " + ex.Message);
+            }
+
             var sb = new System.Text.StringBuilder();
             sb.AppendLine($"SpotiBee {typeof(Plugin).Assembly.GetName().Version.ToString(3)} diagnostics, {DateTime.Now}");
             sb.AppendLine($"MusicBee API revision {mbApiInterface.ApiRevision}, {Environment.OSVersion}, {(Environment.Is64BitProcess ? "64" : "32")}-bit");
@@ -352,7 +370,11 @@ namespace MusicBeePlugin
             sb.AppendLine($"Mode={router?.Mode} Route={router?.Route}");
             sb.AppendLine($"Player: state={player?.PlayState} file={player?.NowPlayingFile}");
             var s = controller?.LastSnapshot?.State;
-            sb.AppendLine($"Spotify: playing={s?.IsPlaying} item={s?.Item?.Name ?? "(none)"} device={s?.Device?.Name ?? "(none)"}");
+            sb.AppendLine($"Spotify: playing={s?.IsPlaying} item={s?.Item?.Name ?? "(none)"} device={s?.Device?.Name ?? "(none)"} " +
+                          $"restricted={s?.Device?.IsRestricted} disallows=[{s?.Actions?.Disallows}]");
+            sb.AppendLine("Spotify devices:");
+            foreach (var line in deviceLines)
+                sb.AppendLine(line);
             sb.AppendLine($"Placeholder folder={controller?.Settings.EffectivePlaceholderFolder}");
             sb.AppendLine();
             var panels = NowPlayingPanel.LivePanels.ToList();

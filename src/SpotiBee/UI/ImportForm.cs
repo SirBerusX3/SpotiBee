@@ -138,7 +138,7 @@ namespace SpotiBee.UI
             Playlist[] playlists;
             try
             {
-                me = controller.User ?? await client.GetCurrentUserAsync();
+                me = await controller.GetUserAsync() ?? await client.GetCurrentUserAsync();
                 playlists = await client.GetMyPlaylistsAsync();
             }
             catch (Exception ex)

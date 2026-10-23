@@ -143,8 +143,8 @@ namespace SpotiBee
 
         // --- Playlists -----------------------------------------------------
 
-        public Task RefreshPlaylistsAsync(bool force = false) =>
-            Playlists.RefreshAsync(Client, controller.User?.Id, controller.Store, force);
+        public async Task RefreshPlaylistsAsync(bool force = false) =>
+            await Playlists.RefreshAsync(Client, (await controller.GetUserAsync())?.Id, controller.Store, force);
 
         /// <summary>True when the playlist has every one of the tracks.</summary>
         public bool PlaylistHasAll(PlaylistMembership.Entry playlist, IEnumerable<Track> tracks) =>

@@ -289,10 +289,21 @@ Placeholder files are left alone, because they're part of your MusicBee library.
 - **Login page says "INVALID_CLIENT: Invalid redirect URI"**: the dashboard's redirect URI
   must match `http://127.0.0.1:5543/callback` exactly.
 - **Port 5543 in use**: another app is holding the callback port; close it and retry.
+- **The Spotify app plays nothing, or its own last song, instead of the track from MusicBee**:
+  some Spotify apps (seen with the Windows desktop app) ignore a request for a single track.
+  SpotiBee checks every track it starts. If it isn't playing, SpotiBee asks for it as part of its
+  album, which those apps do play, and from then on asks that device that way first. Only the
+  first track is slower. If neither works, the panel says so and MusicBee moves on; restarting
+  the Spotify app or picking another device usually helps.
+- **"Spotify on … isn't accepting remote control right now"** or **"… doesn't allow …"**: Spotify
+  refused the command ("Restriction violated"). Either it has the device marked as restricted
+  (marked *can't be controlled* in the device dropdown), or what's playing doesn't allow that
+  action. Restarting the Spotify app or picking another device usually helps.
 - Status and error messages appear at the bottom of the panel and are also written to
   MusicBee's log (`%APPDATA%\MusicBee\ErrorLog.dat`), prefixed with `SpotiBee:`.
-- **Tools → SpotiBee: Save Diagnostics Report** writes connection, playback and panel state
-  plus recent log lines to `%APPDATA%\MusicBee\SpotiBee\diagnostics.txt`.
+- **Tools → SpotiBee: Save Diagnostics Report** writes connection, playback and panel state, your
+  Spotify devices and whether each accepts remote control, plus recent log lines (including every
+  request Spotify refused) to `%APPDATA%\MusicBee\SpotiBee\diagnostics.txt`.
 
 ## Project layout
 

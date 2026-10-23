@@ -57,6 +57,44 @@ namespace SpotiBee.Spotify
         [DataMember(Name = "repeat_state")] public string RepeatState { get; set; }
         [DataMember(Name = "currently_playing_type")] public string CurrentlyPlayingType { get; set; }
         [DataMember(Name = "item")] public Track Item { get; set; }
+        [DataMember(Name = "actions")] public PlaybackActions Actions { get; set; }
+    }
+
+    [DataContract]
+    public class PlaybackActions
+    {
+        [DataMember(Name = "disallows")] public Disallows Disallows { get; set; }
+    }
+
+    /// <summary>Commands Spotify won't accept for what's playing right now (it answers "Restriction violated").</summary>
+    [DataContract]
+    public class Disallows
+    {
+        [DataMember(Name = "interrupting_playback")] public bool InterruptingPlayback { get; set; }
+        [DataMember(Name = "pausing")] public bool Pausing { get; set; }
+        [DataMember(Name = "resuming")] public bool Resuming { get; set; }
+        [DataMember(Name = "seeking")] public bool Seeking { get; set; }
+        [DataMember(Name = "skipping_next")] public bool SkippingNext { get; set; }
+        [DataMember(Name = "skipping_prev")] public bool SkippingPrev { get; set; }
+        [DataMember(Name = "toggling_repeat_context")] public bool TogglingRepeatContext { get; set; }
+        [DataMember(Name = "toggling_shuffle")] public bool TogglingShuffle { get; set; }
+        [DataMember(Name = "toggling_repeat_track")] public bool TogglingRepeatTrack { get; set; }
+        [DataMember(Name = "transferring_playback")] public bool TransferringPlayback { get; set; }
+
+        /// <summary>Plain-English names of the disallowed actions, e.g. "pausing, skipping".</summary>
+        public override string ToString()
+        {
+            var names = new System.Collections.Generic.List<string>();
+            if (InterruptingPlayback) names.Add("starting something else");
+            if (Pausing) names.Add("pausing");
+            if (Resuming) names.Add("resuming");
+            if (Seeking) names.Add("seeking");
+            if (SkippingNext || SkippingPrev) names.Add("skipping");
+            if (TogglingShuffle) names.Add("shuffle");
+            if (TogglingRepeatContext || TogglingRepeatTrack) names.Add("repeat");
+            if (TransferringPlayback) names.Add("moving to another device");
+            return string.Join(", ", names);
+        }
     }
 
     [DataContract]
@@ -69,7 +107,7 @@ namespace SpotiBee.Spotify
         [DataMember(Name = "is_restricted")] public bool IsRestricted { get; set; }
         [DataMember(Name = "volume_percent")] public int? VolumePercent { get; set; }
 
-        public override string ToString() => $"{Name} ({Type})";
+        public override string ToString() => $"{Name} ({Type})" + (IsRestricted ? " (can't be controlled)" : "");
     }
 
     [DataContract]
@@ -255,7 +293,14 @@ namespace SpotiBee.Spotify
     {
         [DataMember(Name = "uris", EmitDefaultValue = false)] public string[] Uris { get; set; }
         [DataMember(Name = "context_uri", EmitDefaultValue = false)] public string ContextUri { get; set; }
+        [DataMember(Name = "offset", EmitDefaultValue = false)] public PlayOffset Offset { get; set; }
         [DataMember(Name = "position_ms", EmitDefaultValue = false)] public int? PositionMs { get; set; }
+    }
+
+    [DataContract]
+    public class PlayOffset
+    {
+        [DataMember(Name = "uri")] public string Uri { get; set; }
     }
 
     [DataContract]

@@ -235,7 +235,7 @@ namespace SpotiBee
         {
             var store = controller.Store;
             // Normally loaded at connect, but don't depend on that having worked
-            var me = (controller.User ?? await controller.Client.GetCurrentUserAsync(ct))?.Id;
+            var me = (await controller.GetUserAsync())?.Id;
             if (me == null)
                 return;
             if (!store.HasSeenPlaylists)

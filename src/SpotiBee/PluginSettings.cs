@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Security.Cryptography;
@@ -39,6 +40,12 @@ namespace SpotiBee
 
         /// <summary>Linked playlists sync automatically unless this is set.</summary>
         [DataMember] public bool DisableAutoSync { get; set; }
+
+        /// <summary>
+        /// Spotify devices that ignore a request to play a lone track but play it when asked for it
+        /// within its album, so they're asked that way first.
+        /// </summary>
+        [DataMember] public List<string> AlbumPlayDevices { get; set; }
 
         /// <summary>New Spotify playlists are imported without asking when this is set.</summary>
         [DataMember] public bool AutoImportNewPlaylists { get; set; }
