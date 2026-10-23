@@ -12,8 +12,9 @@ namespace SpotiBee.Library
     public sealed class LibraryTidy
     {
         /// <summary>
-        /// Plugins can't remove library entries, so deleted placeholders are moved into this album
-        /// first: their old albums leave the album view, and the user removes them all with one Delete.
+        /// Plugins can't remove library entries, so deleted placeholders are moved into this album first.
+        /// Their old albums then leave the album view (MusicBee drops the deleted files itself), and if
+        /// MusicBee ever keeps any listed, they're together in one album the user can delete with Del.
         /// </summary>
         public const string RemovedAlbum = "SpotiBee – removed placeholders";
         public const string RemovedAlbumArtist = "SpotiBee";

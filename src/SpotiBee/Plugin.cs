@@ -637,26 +637,13 @@ namespace MusicBeePlugin
             var answer = MessageBox.Show(MainWindow,
                 $"{orphans.Count} Spotify placeholder(s) ({megabytes:0.#} MB) aren't in any of your MusicBee playlists or saved albums any more " +
                 "(auto-playlists like Recently Added don't count, since they just show what's in the library).\n\n" +
-                "Delete them? Your own music files are never touched.\n\n" +
-                "MusicBee keeps listing deleted files in its library until you delete them there; plugins can't. So " +
-                $"SpotiBee first moves them into one album, \"{LibraryTidy.RemovedAlbum}\", which you can then delete " +
-                "in one go.\n\n" +
-                "Tip: to remove a whole album, it's easier to select it in MusicBee and press Del instead. MusicBee then " +
-                "removes the files and their library entries together.",
+                "Delete them? Your own music files are never touched, and songs still in one of your playlists are kept.",
                 "Clean up placeholders", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
             if (answer != DialogResult.Yes)
                 return;
 
             var deleted = tidy.Delete(orphans);
             controller.ShowStatus($"Deleted {deleted} unused placeholder(s).");
-            if (deleted == 0)
-                return;
-            MessageBox.Show(MainWindow,
-                $"Deleted {deleted} placeholder(s).\n\n" +
-                "MusicBee still lists them, so they've been grouped as one album:\n" +
-                $"\"{LibraryTidy.RemovedAlbum}\" by {LibraryTidy.RemovedAlbumArtist}.\n\n" +
-                "To remove them from MusicBee, select that album in the music explorer and press Del.",
-                "Clean up placeholders", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         /// <summary>Opens the search window, or brings the open one to the front. It isn't modal, so MusicBee stays usable.</summary>

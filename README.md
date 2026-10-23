@@ -6,26 +6,23 @@ A MusicBee plugin that bridges MusicBee and Spotify.
 
 **What it does today:** Spotify login, a now-playing panel with controls and lyrics, playlist
 import, playing Spotify tracks from MusicBee's queue, two-way playlist sync (including sending
-MusicBee playlists to Spotify), Spotify search, liking and adding to playlists, library tidy-up,
-alerts for new Spotify playlists and new SpotiBee versions, and a window for managing linked playlists.
+MusicBee playlists to Spotify), saved albums in MusicBee's album view, Spotify search, liking and
+adding to playlists, copying Spotify links, a list of songs you only have on Spotify, library tidy-up,
+alerts for new playlists, albums and SpotiBee versions, and a window for managing linked playlists.
 
 ## Roadmap
 
 **Next**
-- Importing your saved Spotify albums, so they show up in MusicBee's album view
-- A list of songs you only have on Spotify, grouped by album, that you can export
-- Copying a song's Spotify link
-
-**After that**
 - Easier first-time setup
 - Copying a diagnostics summary to paste into a forum post
 
 **Later**
 - Spotify's queue on the panel
 
-**Done in 0.7:** alerts for new Spotify playlists, a Linked Playlists window (sync, pause, unlink),
-an update notice, and a filter box with Select all / Select none in the import and send windows.
-See the [CHANGELOG](CHANGELOG.md) for everything.
+**Done in 0.8:** saved albums in MusicBee's album view (with alerts for newly saved ones), a list of
+songs you only have on Spotify with CSV export, copying Spotify links, and an easier Clean Up.
+**In 0.7:** alerts for new playlists, a Linked Playlists window, an update notice, and the filter box
+with Select all / Select none. See the [CHANGELOG](CHANGELOG.md) for everything.
 
 Plans change with feedback, so suggestions are welcome.
 
@@ -118,11 +115,10 @@ up in the album view like any other album; no playlists are made.
   save on Spotify. A notice on the panel says so; click it to open the window with just the new
   ones ticked, or ✕ to ignore them. **Import new Spotify playlists and saved albums
   automatically** in settings imports them without asking.
-- **Removing an album:** the easiest way is to select it in MusicBee and press **Del**. MusicBee removes
-  the placeholder files and its library entries together, which plugins can't do. Removing an album
-  from your Spotify library doesn't change MusicBee by itself, but its placeholders then count as
-  unused, so **Clean Up Unused Placeholders** offers to delete them. Songs from it that are still in
-  one of your playlists are kept, so the album stays in the album view with just those songs.
+- **Removing an album:** remove it from your Spotify library, then run **Clean Up Unused
+  Placeholders**, which deletes its placeholders and takes it out of the album view. Songs from it
+  that are still in one of your playlists are kept, so the album stays with just those songs; to
+  remove it completely anyway, select it in MusicBee and press **Del**.
 
 ## Two-way playlist sync
 
@@ -259,13 +255,11 @@ panel covers that, so SpotiBee's lyrics stay hidden.
   own copy of counts as unused. Auto-playlists such as Recently Added don't count, since they only
   filter the library. Removing a song from a playlist (or a sync removing it) never deletes its
   placeholder by itself. Your own music files are never touched.
-  - MusicBee's plugin API can't remove library entries, so deleted placeholders stay listed in
-    MusicBee as missing files. To make removing them easy, Clean Up first moves them into one album,
-    **SpotiBee – removed placeholders** by *SpotiBee*. Their old albums leave the album view
-    straight away; select the "removed placeholders" album in the music explorer and press **Del**
-    to remove them from MusicBee.
-  - To remove a whole album, it's simpler to select it in MusicBee and press **Del**: MusicBee
-    removes the files and its library entries together.
+  - An album whose placeholders are all deleted leaves MusicBee's album view. Before deleting,
+    Clean Up moves each placeholder into an album called **SpotiBee – removed placeholders**, so if
+    MusicBee ever keeps any of them listed, they're in one place: select that album and press **Del**.
+  - To remove an album even though some of its songs are in a playlist, select it in MusicBee and
+    press **Del**.
 
 ## Playing Spotify tracks from MusicBee
 
