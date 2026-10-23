@@ -54,14 +54,23 @@ That copies to `%APPDATA%\MusicBee\Plugins`. Override with `-p:MusicBeePluginsDi
 
 ## First-time setup
 
-1. Go to the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and create an app.
-   - Tick **Web API**.
-   - Redirect URI: `http://127.0.0.1:5543/callback` (exactly this).
-2. Copy the app's **Client ID**. No client secret is needed; SpotiBee uses PKCE.
-3. In MusicBee: **Edit → Preferences → Plugins**, enable **SpotiBee**, then click **Configure**
-   (or use **Tools → SpotiBee Settings…**).
-4. Paste the Client ID, click **Connect**, and approve access in the browser.
-5. Add the panel: **View → Arrange Panels**, then drag **SpotiBee** into a panel slot.
+In MusicBee: **Edit → Preferences → Plugins**, enable **SpotiBee**, then click **Configure** (or use
+**Tools → SpotiBee Settings…**, or **Connect to Spotify…** on the panel). Until you're connected, the
+settings window walks you through it, with a button for each step:
+
+1. **Open the Spotify Developer Dashboard** and create an app, logged in with the Spotify account
+   you'll listen with (it needs Premium). Any name and description will do.
+2. In the app's settings, add the Redirect URI `http://127.0.0.1:5543/callback` (the **Copy** button
+   copies it exactly), tick **Web API**, and save.
+3. Copy the app's **Client ID** and **Paste** it in. SpotiBee checks it looks right. No client secret
+   is needed; SpotiBee uses PKCE.
+4. Click **Connect** and approve SpotiBee in the browser. If Spotify's page shows an error instead,
+   the settings window says what it means.
+
+Then add the panel: **View → Arrange Panels**, and drag **SpotiBee** into a panel slot.
+
+Spotify's rules for these personal apps: the account that created the app needs Premium, and other
+Spotify accounts can only use it once they're added under the app's **User Management**.
 
 Optional: assign hotkeys under **Preferences → Hotkeys** (search for "SpotiBee").
 
@@ -334,9 +343,17 @@ Placeholder files are left alone, because they're part of your MusicBee library.
   action. Restarting the Spotify app or picking another device usually helps.
 - Status and error messages appear at the bottom of the panel and are also written to
   MusicBee's log (`%APPDATA%\MusicBee\ErrorLog.dat`), prefixed with `SpotiBee:`.
+- **Asking for help on the forum?** **Tools → SpotiBee: Copy Diagnostics Summary…** (or
+  **Diagnostics summary…** in settings) shows a short report and copies it, ready to paste into
+  your post in `[code]` tags. It has nothing private in it: no login details, account name or
+  Client ID, and your computer and device names and Windows user folder are hidden.
 - **Tools → SpotiBee: Save Diagnostics Report** writes connection, playback and panel state, your
   Spotify devices and whether each accepts remote control, plus recent log lines (including every
-  request Spotify refused) to `%APPDATA%\MusicBee\SpotiBee\diagnostics.txt`.
+  request Spotify refused) to `%APPDATA%\MusicBee\SpotiBee\diagnostics.txt`. This full report is
+  for your own troubleshooting; it isn't masked like the summary.
+- **"Spotify says this account isn't allowed to use your Spotify app"**: you connected with an
+  account other than the one that created the app. Add it under the app's **User Management** in
+  the Developer Dashboard, or connect with the app's own account.
 
 ## Project layout
 

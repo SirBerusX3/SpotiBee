@@ -383,6 +383,11 @@ namespace SpotiBee.Spotify
                     return Message;
                 if (Reason == "RATE_LIMITED")
                     return "Spotify is rate limiting requests. Slowing down…";
+                if (StatusCode == HttpStatusCode.Forbidden && (Message ?? "").IndexOf("not be registered", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return "Spotify says this account isn't allowed to use your Spotify app. In the Developer Dashboard, open your app's " +
+                           "User Management and add this account, or connect with the account that created the app.";
+                if (StatusCode == HttpStatusCode.Forbidden && (Message ?? "").IndexOf("premium", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return "Spotify requires Premium for this: the account you connect with, and the one that created your Spotify app.";
                 if (StatusCode == HttpStatusCode.Forbidden)
                     return "Spotify refused that action: " + Message;
                 return Message;

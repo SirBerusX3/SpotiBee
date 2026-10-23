@@ -335,6 +335,7 @@ namespace MusicBeePlugin
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Previous Track", "SpotiBee: Previous Track", async (s, e) => await controller.PreviousAsync());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Switch Playback Mode", "SpotiBee: Switch Playback Mode", (s, e) => router.CycleMode());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Save Diagnostics Report", null, (s, e) => SaveDiagnostics());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Copy Diagnostics Summary…", null, (s, e) => ShowDiagnosticsSummary(MainWindow));
 
             // Right-clicking songs: like them, add them to Spotify playlists, save the album, follow the artist
             if (mbApiInterface.MB_AddMenuItem("context.Main/SpotiBee", null, null) is ToolStripMenuItem spotify)
@@ -404,9 +405,62 @@ namespace MusicBeePlugin
             }
         }
 
+        /// <summary>A short, privacy-safe report for a forum post, shown before copying so the user sees what they share.</summary>
+        private async void ShowDiagnosticsSummary(IWin32Window owner)
+        {
+            if (controller == null)
+                return;
+            var settings = controller.Settings;
+            IReadOnlyList<SpotiBee.Spotify.Device> devices = null;
+            string devicesError = null;
+            var client = controller.Client;
+            if (client != null)
+            {
+                try
+                {
+                    await controller.GetUserAsync();
+                    devices = await client.GetDevicesAsync();
+                }
+                catch (Exception ex)
+                {
+                    devicesError = ex is SpotiBee.Spotify.SpotifyApiException api ? api.FriendlyMessage : ex.Message;
+                }
+            }
+            var user = controller.User;
+            var summary = DiagnosticsSummary.Build(new DiagnosticsSummary.Inputs
+            {
+                Version = typeof(Plugin).Assembly.GetName().Version.ToString(3),
+                MusicBeeApiRevision = mbApiInterface.ApiRevision,
+                Windows = Environment.OSVersion.ToString(),
+                Is64Bit = Environment.Is64BitProcess,
+                HasClientId = !string.IsNullOrEmpty(settings.ClientId),
+                Connected = controller.IsConnected,
+                Premium = user?.IsPremium,
+                PlaybackMode = router == null ? "?" : PlaybackRouter.Describe(router.Mode),
+                Route = router?.Route.ToString() ?? "?",
+                Devices = devices,
+                DevicesError = client == null ? "not connected" : devicesError,
+                AlbumPlayDeviceIds = settings.AlbumPlayDevices,
+                LinkedPlaylists = controller.Store.Playlists.Count,
+                PausedPlaylists = controller.Store.Playlists.Count(p => p.SyncPaused),
+                ImportedAlbums = controller.Store.Albums.Count,
+                Placeholders = controller.Store.AllTracks.Count(t => !string.IsNullOrEmpty(t.PlaceholderPath)),
+                AutoSync = !settings.DisableAutoSync,
+                AutoImport = settings.AutoImportNewPlaylists,
+                UpdateCheck = !settings.DisableUpdateCheck,
+                Lyrics = !settings.HideLyrics,
+                Log = Diagnostics.History,
+                UserProfileFolder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                MachineName = Environment.MachineName,
+                AccountNames = new[] { user?.DisplayName, user?.Id },
+            });
+            using var form = new DiagnosticsSummaryForm(summary);
+            form.ShowDialog(owner ?? MainWindow);
+        }
+
         private void ShowSettings()
         {
-            using var form = new SettingsForm(controller);
+            using var form = new SettingsForm(controller, ShowDiagnosticsSummary);
             form.ShowDialog(MainWindow);
             // The update setting may have changed: hide the notice, or look again
             CheckForUpdate();
