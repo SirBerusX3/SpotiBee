@@ -136,6 +136,46 @@ namespace SpotiBee.Library
             return result;
         }
 
+        /// <summary>
+        /// Adds a saved album's tracks to the MusicBee library: your own files where you have them,
+        /// placeholders for the rest. No playlist is made; the album shows in MusicBee's album view.
+        /// </summary>
+        public async Task<ImportResult> ImportAlbumAsync(Album album, IProgress<ImportProgress> progress, CancellationToken ct)
+        {
+            var result = new ImportResult { Name = album.Name };
+            progress?.Report(new ImportProgress($"Reading \"{album.Name}\" from Spotify…"));
+            var tracks = album.Tracks?.Items != null && album.Tracks.Next == null
+                ? album.Tracks.Items
+                : await spotify.GetAlbumTracksAsync(album.Id, ct);
+
+            // An album's track list leaves out the album; placeholders need it for tags and artwork
+            var bare = new Album
+            {
+                Id = album.Id,
+                Name = album.Name,
+                Uri = album.Uri,
+                Images = album.Images,
+                Artists = album.Artists,
+                ReleaseDate = album.ReleaseDate,
+            };
+            foreach (var track in tracks.Where(t => t != null))
+                track.Album ??= bare;
+
+            var materialized = await MaterializeAsync(tracks.Select(t => (t, false)).ToList(), result, progress, ct);
+            result.Tracks = materialized.Files.Count;
+            store.SetAlbum(new AlbumRecord
+            {
+                SpotifyId = album.Id,
+                Name = album.Name,
+                Artist = album.ArtistNames,
+                TrackIds = materialized.TrackIds,
+                LastImportedUtc = DateTime.UtcNow,
+            });
+            store.Save();
+            progress?.Report(new ImportProgress($"Imported \"{album.Name}\": {result.Summary}"));
+            return result;
+        }
+
         public async Task<List<(Track Track, bool IsLocal)>> FetchAsync(ImportSource source, IProgress<ImportProgress> progress, CancellationToken ct)
         {
             progress?.Report(new ImportProgress($"Reading \"{source.Name}\" from Spotify…"));

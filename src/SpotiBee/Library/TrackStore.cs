@@ -16,6 +16,8 @@ namespace SpotiBee.Library
         private readonly object sync = new object();
         private Dictionary<string, TrackRecord> tracks = new Dictionary<string, TrackRecord>(StringComparer.Ordinal);
         private Dictionary<string, PlaylistRecord> playlists = new Dictionary<string, PlaylistRecord>(StringComparer.Ordinal);
+        private readonly Dictionary<string, AlbumRecord> albums = new Dictionary<string, AlbumRecord>(StringComparer.Ordinal);
+        private DateTime? albumsSeenUntilUtc;
         private Dictionary<string, TrackRecord> byPath;
         private readonly Dictionary<string, (DateTime When, int Version)> unmatched = new Dictionary<string, (DateTime, int)>(StringComparer.OrdinalIgnoreCase);
         // Spotify playlists the user has been told about; null until the first listing
@@ -124,6 +126,52 @@ namespace SpotiBee.Library
             }
         }
 
+        public AlbumRecord GetAlbum(string spotifyAlbumId)
+        {
+            lock (sync)
+                return albums.TryGetValue(spotifyAlbumId, out var record) ? record : null;
+        }
+
+        public void SetAlbum(AlbumRecord record)
+        {
+            lock (sync)
+                albums[record.SpotifyId] = record;
+        }
+
+        public void RemoveAlbum(string spotifyAlbumId)
+        {
+            lock (sync)
+                albums.Remove(spotifyAlbumId);
+        }
+
+        /// <summary>Saved Spotify albums imported into MusicBee.</summary>
+        public IReadOnlyList<AlbumRecord> Albums
+        {
+            get
+            {
+                lock (sync)
+                    return albums.Values.ToList();
+            }
+        }
+
+        /// <summary>
+        /// Albums saved on Spotify after this time haven't been shown to the user yet ("new").
+        /// Null until saved albums have been looked at once.
+        /// </summary>
+        public DateTime? AlbumsSeenUntilUtc
+        {
+            get
+            {
+                lock (sync)
+                    return albumsSeenUntilUtc;
+            }
+            set
+            {
+                lock (sync)
+                    albumsSeenUntilUtc = value;
+            }
+        }
+
         /// <summary>True if this local file was searched for on Spotify recently without a match.</summary>
         public bool WasRecentlyUnmatched(string path, TimeSpan within, int matcherVersion)
         {
@@ -219,6 +267,8 @@ namespace SpotiBee.Library
                     Playlists = playlists.Values.ToList(),
                     Unmatched = unmatched.Select(u => new UnmatchedFile { Path = u.Key, CheckedUtc = u.Value.When, MatcherVersion = u.Value.Version }).ToList(),
                     SeenPlaylists = seenPlaylists?.ToList(),
+                    Albums = albums.Values.ToList(),
+                    AlbumsSeenUntilUtc = albumsSeenUntilUtc,
                 };
 
             Directory.CreateDirectory(Path.GetDirectoryName(filePath));
@@ -245,6 +295,10 @@ namespace SpotiBee.Library
                     unmatched[u.Path] = (u.CheckedUtc, u.MatcherVersion);
             if (data.SeenPlaylists != null)
                 seenPlaylists = new HashSet<string>(data.SeenPlaylists, StringComparer.Ordinal);
+            foreach (var a in data.Albums ?? new List<AlbumRecord>())
+                if (!string.IsNullOrEmpty(a.SpotifyId))
+                    albums[a.SpotifyId] = a;
+            albumsSeenUntilUtc = data.AlbumsSeenUntilUtc;
         }
 
         [DataContract]
@@ -255,6 +309,8 @@ namespace SpotiBee.Library
             [DataMember] public List<PlaylistRecord> Playlists { get; set; }
             [DataMember] public List<UnmatchedFile> Unmatched { get; set; }
             [DataMember] public List<string> SeenPlaylists { get; set; }
+            [DataMember] public List<AlbumRecord> Albums { get; set; }
+            [DataMember] public DateTime? AlbumsSeenUntilUtc { get; set; }
         }
 
         [DataContract]
@@ -294,6 +350,22 @@ namespace SpotiBee.Library
 
         /// <summary>The file MusicBee playlists should reference: the local copy when there is one.</summary>
         public string PreferredPath => !string.IsNullOrEmpty(LocalPath) ? LocalPath : PlaceholderPath;
+    }
+
+    /// <summary>A saved Spotify album imported into the MusicBee library.</summary>
+    [DataContract]
+    public sealed class AlbumRecord
+    {
+        [DataMember] public string SpotifyId { get; set; }
+        [DataMember] public string Name { get; set; }
+        [DataMember] public string Artist { get; set; }
+
+        /// <summary>The album's Spotify track IDs. Their placeholders aren't "unused" while the album is saved.</summary>
+        [DataMember] public List<string> TrackIds { get; set; }
+
+        [DataMember] public DateTime LastImportedUtc { get; set; }
+
+        public string Uri => "spotify:album:" + SpotifyId;
     }
 
     [DataContract]

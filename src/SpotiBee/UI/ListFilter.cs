@@ -40,8 +40,8 @@ namespace SpotiBee.UI
     }
 
     /// <summary>
-    /// Shows only the rows of a checkbox list whose name (first column) contains every word typed in
-    /// the filter box. Ticks on hidden rows are kept, so they still count. A ListView can't hide
+    /// Shows only the rows of a checkbox list whose name (first column, or <see cref="MatchText"/>)
+    /// contains every word typed in the filter box. Ticks on hidden rows are kept, so they still count. A ListView can't hide
     /// rows, so the matching ones are put back into it each time the filter changes.
     /// </summary>
     internal sealed class ListFilter
@@ -73,6 +73,9 @@ namespace SpotiBee.UI
         /// blocks the user's clicks should let these through.
         /// </summary>
         public bool Changing { get; private set; }
+
+        /// <summary>The text the filter searches in a row; the first column unless set.</summary>
+        public Func<ListViewItem, string> MatchText { get; set; } = item => item.Text;
 
         /// <summary>Raised after rows are ticked or unticked, or the filter changes what's shown.</summary>
         public event Action CheckedChanged;
@@ -110,7 +113,11 @@ namespace SpotiBee.UI
         private void Apply()
         {
             var words = box.Text.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            var shown = all.Where(i => words.All(w => i.Text.IndexOf(w, StringComparison.CurrentCultureIgnoreCase) >= 0)).ToArray();
+            var shown = all.Where(i =>
+            {
+                var text = MatchText(i) ?? "";
+                return words.All(w => text.IndexOf(w, StringComparison.CurrentCultureIgnoreCase) >= 0);
+            }).ToArray();
             Changing = true;
             list.BeginUpdate();
             try

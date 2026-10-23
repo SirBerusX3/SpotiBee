@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Runtime.Serialization;
 
@@ -165,6 +166,26 @@ namespace SpotiBee.Spotify
         [DataMember(Name = "images")] public Image[] Images { get; set; }
         [DataMember(Name = "artists")] public Artist[] Artists { get; set; }
         [DataMember(Name = "release_date")] public string ReleaseDate { get; set; }
+        [DataMember(Name = "total_tracks")] public int TotalTracks { get; set; }
+
+        /// <summary>The first page of tracks (full album objects only). These tracks have no album of their own.</summary>
+        [DataMember(Name = "tracks")] public Paging<Track> Tracks { get; set; }
+
+        public string ArtistNames => Artists == null ? "" : string.Join(", ", Artists.Select(a => a.Name));
+    }
+
+    [DataContract]
+    public class SavedAlbum
+    {
+        [DataMember(Name = "added_at")] public string AddedAt { get; set; }
+        [DataMember(Name = "album")] public Album Album { get; set; }
+
+        /// <summary>When the album was saved; null if Spotify didn't say.</summary>
+        public DateTime? AddedUtc =>
+            DateTime.TryParse(AddedAt, System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var when)
+                ? when
+                : (DateTime?)null;
     }
 
     [DataContract]

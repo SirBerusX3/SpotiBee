@@ -11,6 +11,13 @@ namespace SpotiBee.Library
     /// </summary>
     public sealed class LibraryTidy
     {
+        /// <summary>
+        /// Plugins can't remove library entries, so deleted placeholders are moved into this album
+        /// first: their old albums leave the album view, and the user removes them all with one Delete.
+        /// </summary>
+        public const string RemovedAlbum = "SpotiBee – removed placeholders";
+        public const string RemovedAlbumArtist = "SpotiBee";
+
         private readonly IMusicBeeLibrary musicBee;
         private readonly TrackStore store;
         private readonly Func<string, bool> isPlaceholderPath;
@@ -113,15 +120,21 @@ namespace SpotiBee.Library
                     used.UnionWith(musicBee.GetPlaylistFiles(url));
             if (!string.IsNullOrEmpty(nowPlaying))
                 used.Add(nowPlaying);
+            // Imported saved albums keep their placeholders, unless you now have your own copy
+            var inAlbums = new HashSet<string>(store.Albums.SelectMany(a => a.TrackIds ?? new List<string>()), StringComparer.Ordinal);
 
             return store.AllTracks
                 .Where(r => !string.IsNullOrEmpty(r.PlaceholderPath) && isPlaceholderPath(r.PlaceholderPath) &&
-                            !used.Contains(r.PlaceholderPath) && File.Exists(r.PlaceholderPath))
+                            !used.Contains(r.PlaceholderPath) && File.Exists(r.PlaceholderPath) &&
+                            !(inAlbums.Contains(r.SpotifyId) && string.IsNullOrEmpty(r.LocalPath)))
                 .Select(r => new Orphan { Record = r, Path = r.PlaceholderPath, Bytes = new FileInfo(r.PlaceholderPath).Length })
                 .ToList();
         }
 
-        /// <summary>Deletes orphaned placeholder files and any folders left empty. Returns how many were deleted.</summary>
+        /// <summary>
+        /// Moves orphaned placeholders into the <see cref="RemovedAlbum"/>, then deletes their files and any
+        /// folders left empty. Returns how many were deleted.
+        /// </summary>
         public int Delete(IEnumerable<Orphan> orphans)
         {
             var deleted = 0;
@@ -129,6 +142,9 @@ namespace SpotiBee.Library
             {
                 try
                 {
+                    // Tags can only be written while the file exists
+                    if (!musicBee.SetAlbum(orphan.Path, RemovedAlbum, RemovedAlbumArtist))
+                        Diagnostics.Log("Clean up: couldn't move " + orphan.Path + " to the removed placeholders album");
                     File.Delete(orphan.Path);
                     orphan.Record.PlaceholderPath = null;
                     deleted++;

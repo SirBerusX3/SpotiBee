@@ -127,6 +127,17 @@ namespace SpotiBee.Spotify
         public Task<SavedTrack[]> GetSavedTracksAsync(IProgress<int> progress = null, CancellationToken ct = default) =>
             GetAllPagesAsync<SavedTrack>("me/tracks?limit=50", ct, progress);
 
+        /// <summary>Every saved album, most recently saved first, each with its first page of tracks.</summary>
+        public Task<SavedAlbum[]> GetSavedAlbumsAsync(IProgress<int> progress = null, CancellationToken ct = default) =>
+            GetAllPagesAsync<SavedAlbum>("me/albums?limit=50", ct, progress);
+
+        public Task<Paging<SavedAlbum>> GetSavedAlbumsPageAsync(int limit, CancellationToken ct = default) =>
+            GetAsync<Paging<SavedAlbum>>($"me/albums?limit={Math.Max(1, Math.Min(50, limit))}", ct);
+
+        /// <summary>All of an album's tracks. They have no album of their own.</summary>
+        public Task<Track[]> GetAlbumTracksAsync(string albumId, CancellationToken ct = default) =>
+            GetAllPagesAsync<Track>($"albums/{Uri.EscapeDataString(albumId)}/tracks?limit=50", ct);
+
         public const int MaxPlaylistItemsPerRequest = 100;
         public const int MaxLibraryItemsPerRequest = 40;
         public const int MaxSearchResults = 10;
@@ -389,6 +400,9 @@ namespace SpotiBee.Spotify
         Task<Playlist[]> GetMyPlaylistsAsync(CancellationToken ct = default);
         Task<PlaylistItem[]> GetPlaylistItemsAsync(string playlistId, IProgress<int> progress = null, CancellationToken ct = default);
         Task<SavedTrack[]> GetSavedTracksAsync(IProgress<int> progress = null, CancellationToken ct = default);
+        Task<SavedAlbum[]> GetSavedAlbumsAsync(IProgress<int> progress = null, CancellationToken ct = default);
+        Task<Paging<SavedAlbum>> GetSavedAlbumsPageAsync(int limit, CancellationToken ct = default);
+        Task<Track[]> GetAlbumTracksAsync(string albumId, CancellationToken ct = default);
         Task<Paging<SavedTrack>> GetSavedTracksPageAsync(int limit, CancellationToken ct = default);
         Task<Playlist> CreatePlaylistAsync(string name, string description, CancellationToken ct = default);
         Task<string> AddPlaylistItemsAsync(string playlistId, IList<string> uris, int? position, CancellationToken ct = default);

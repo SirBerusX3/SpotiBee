@@ -102,6 +102,28 @@ Spotify limits (Development Mode apps, since February 2026):
 - Liked Songs can be imported.
 - Podcast episodes and Spotify "local files" without a match in your library are skipped.
 
+## Importing saved albums
+
+**Tools → SpotiBee: Import Saved Albums…** (or the panel header menu) lists the albums saved in
+your Spotify library. Tick some and click Import. They're added to your MusicBee library and show
+up in the album view like any other album; no playlists are made.
+
+- Songs you already have locally use **your own file**, matched the same way as playlist imports.
+  The rest become placeholders tagged with the album, album artist, track and disc numbers, year
+  and artwork, so the album groups properly.
+- The filter box matches album and artist names. The Import button shows how many albums and tracks
+  you've ticked, so a big library isn't a surprise.
+- Importing an album again refreshes it.
+- **New saved albums:** once you've imported at least one album, SpotiBee watches for albums you
+  save on Spotify. A notice on the panel says so; click it to open the window with just the new
+  ones ticked, or ✕ to ignore them. **Import new Spotify playlists and saved albums
+  automatically** in settings imports them without asking.
+- **Removing an album:** the easiest way is to select it in MusicBee and press **Del**. MusicBee removes
+  the placeholder files and its library entries together, which plugins can't do. Removing an album
+  from your Spotify library doesn't change MusicBee by itself, but its placeholders then count as
+  unused, so **Clean Up Unused Placeholders** offers to delete them. Songs from it that are still in
+  one of your playlists are kept, so the album stays in the album view with just those songs.
+
 ## Two-way playlist sync
 
 Every imported playlist, and every playlist you send to Spotify, stays **linked**:
@@ -222,11 +244,18 @@ panel covers that, so SpotiBee's lyrics stay hidden.
   after MusicBee starts, after files are added, and when you run Sync Playlists Now. Very
   different edits (say a 3:35 single edit of a 4:49 album track) stay as placeholders.
 - **Tools → SpotiBee: Clean Up Unused Placeholders…** finds placeholders that no MusicBee
-  playlist uses any more and, if you confirm, deletes them. Auto-playlists such as Recently
-  Added don't count, since they only filter the library. Removing a song from a playlist (or
-  a sync removing it) never deletes its placeholder by itself. Your own music files are never
-  touched. MusicBee's plugin API can't remove library entries, so MusicBee lists the deleted
-  placeholders as missing files until you remove missing files from the library yourself.
+  playlist uses any more, and that aren't part of an imported album still saved on Spotify (it
+  checks with Spotify first), and, if you confirm, deletes them. An album track you now have your
+  own copy of counts as unused. Auto-playlists such as Recently Added don't count, since they only
+  filter the library. Removing a song from a playlist (or a sync removing it) never deletes its
+  placeholder by itself. Your own music files are never touched.
+  - MusicBee's plugin API can't remove library entries, so deleted placeholders stay listed in
+    MusicBee as missing files. To make removing them easy, Clean Up first moves them into one album,
+    **SpotiBee – removed placeholders** by *SpotiBee*. Their old albums leave the album view
+    straight away; select the "removed placeholders" album in the music explorer and press **Del**
+    to remove them from MusicBee.
+  - To remove a whole album, it's simpler to select it in MusicBee and press **Del**: MusicBee
+    removes the files and its library entries together.
 
 ## Playing Spotify tracks from MusicBee
 

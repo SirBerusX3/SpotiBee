@@ -46,6 +46,8 @@ namespace SpotiBee.Library
         string GetLyrics(string file);
         /// <summary>Writes lyrics into a file's tags. Only ever used on placeholders.</summary>
         bool SetLyrics(string file, string text);
+        /// <summary>Changes a file's album and album artist (in the file and MusicBee's library). Only ever used on placeholders.</summary>
+        bool SetAlbum(string file, string album, string albumArtist);
     }
 
     public sealed class MusicBeeLibrary : IMusicBeeLibrary
@@ -127,6 +129,11 @@ namespace SpotiBee.Library
 
         public bool SetLyrics(string file, string text) =>
             api.Library_SetFileTag(file, MetaDataType.Lyrics, text) && api.Library_CommitTagsToFile(file);
+
+        public bool SetAlbum(string file, string album, string albumArtist) =>
+            api.Library_SetFileTag(file, MetaDataType.Album, album) &&
+            api.Library_SetFileTag(file, MetaDataType.AlbumArtist, albumArtist) &&
+            api.Library_CommitTagsToFile(file);
 
         public string AddToLibrary(string path) =>
             api.Library_AddFileToLibrary(path, LibraryCategory.Music) ?? path;

@@ -17,6 +17,7 @@ namespace MusicBeePlugin
         private const string PluginName = "SpotiBee";
         private const string UpdateNoticeKey = "update";
         private const string NewPlaylistsNoticeKey = "new-playlists";
+        private const string NewAlbumsNoticeKey = "new-albums";
 
         private MusicBeeApiInterface mbApiInterface;
         private readonly PluginInfo about = new PluginInfo();
@@ -176,6 +177,7 @@ namespace MusicBeePlugin
                 NowPlayingPanel.RefreshLyricsSetting();
                 playlistSync = new SyncScheduler(controller, library);
                 playlistSync.NewPlaylistsFound += OnNewPlaylistsFound;
+                playlistSync.NewAlbumsFound += OnNewAlbumsFound;
                 playlistSync.Start();
                 controller.SpotifyLibrary = new SpotifyLibrary(controller, library, playlistSync, Path.Combine(storageDir, "playlists.json"));
 
@@ -301,6 +303,7 @@ namespace MusicBeePlugin
                 new ToolStripMenuItem(controller.IsConnected ? "Settings / Disconnect…" : "Connect to Spotify…", null, (s, e) => ShowSettings()),
                 new ToolStripMenuItem("Search Spotify…", null, (s, e) => ShowSearch()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Import Spotify playlists…", null, (s, e) => ShowImport()) { Enabled = controller.IsConnected },
+                new ToolStripMenuItem("Import saved albums…", null, (s, e) => ShowImportAlbums()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Send playlists to Spotify…", null, (s, e) => ShowSendToSpotify()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Sync playlists now", null, (s, e) => SyncNow()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Linked playlists…", null, (s, e) => ShowLinked()) { Enabled = controller.IsConnected },
@@ -317,6 +320,7 @@ namespace MusicBeePlugin
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee Settings…", null, (s, e) => ShowSettings());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Search Spotify…", "SpotiBee: Search Spotify", (s, e) => ShowSearch());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Import Spotify Playlists…", null, (s, e) => ShowImport());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Import Saved Albums…", null, (s, e) => ShowImportAlbums());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Send Playlists to Spotify…", null, (s, e) => ShowSendToSpotify());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Sync Playlists Now", "SpotiBee: Sync Playlists Now", (s, e) => SyncNow());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Linked Playlists…", null, (s, e) => ShowLinked());
@@ -419,6 +423,42 @@ namespace MusicBeePlugin
             form.ShowDialog(MainWindow);
             // The window marks every playlist it listed as seen
             controller.ClearNotice(NewPlaylistsNoticeKey);
+        }
+
+        private void ShowImportAlbums() => ShowImportAlbums(tickNewOnly: false);
+
+        private void ShowImportAlbums(bool tickNewOnly)
+        {
+            if (!controller.IsConnected || library == null)
+            {
+                ShowSettings();
+                return;
+            }
+            using var form = new AlbumImportForm(controller, library, tickNewOnly);
+            form.ShowDialog(MainWindow);
+            // The window marks every album it listed as seen
+            controller.ClearNotice(NewAlbumsNoticeKey);
+        }
+
+        private void OnNewAlbumsFound(IReadOnlyList<SpotiBee.Spotify.SavedAlbum> albums)
+        {
+            var names = albums.Select(a => $"{a.Album.Name} – {a.Album.ArtistNames}").ToList();
+            controller.ShowNotice(new PanelNotice
+            {
+                Key = NewAlbumsNoticeKey,
+                Text = albums.Count == 1
+                    ? $"New saved album \"{albums[0].Album.Name}\": click to import"
+                    : $"{albums.Count} new saved albums: click to import",
+                ToolTip = string.Join("\n", names.Take(15)) + (names.Count > 15 ? $"\n…and {names.Count - 15} more" : "") +
+                          "\n\n✕ hides this until there's another new one",
+                Clicked = () => ShowImportAlbums(tickNewOnly: true),
+                Dismissed = () =>
+                {
+                    SyncScheduler.MarkAlbumsSeen(controller.Store, albums);
+                    try { controller.Store.Save(); }
+                    catch (Exception ex) { Diagnostics.Log("Saving library", ex); }
+                },
+            });
         }
 
         private void ShowLinked()
@@ -541,30 +581,72 @@ namespace MusicBeePlugin
             }
         }
 
-        private void CleanUpPlaceholders()
+        private async void CleanUpPlaceholders()
         {
             if (library == null)
                 return;
+            // An imported album's placeholders stay while it's saved on Spotify; check which still are
+            var albums = controller.Store.Albums;
+            if (albums.Count > 0)
+            {
+                var client = controller.Client;
+                if (client == null)
+                {
+                    MessageBox.Show(MainWindow, "Connect to Spotify first, so SpotiBee can check which of your imported albums are still saved.",
+                        "SpotiBee", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                try
+                {
+                    var stillSaved = await client.LibraryContainsAsync(albums.Select(a => a.Uri).ToList());
+                    for (var i = 0; i < albums.Count; i++)
+                        if (!stillSaved[i])
+                        {
+                            Diagnostics.Log($"Clean up: \"{albums[i].Name}\" is no longer saved on Spotify");
+                            controller.Store.RemoveAlbum(albums[i].SpotifyId);
+                        }
+                    controller.Store.Save();
+                }
+                catch (Exception ex)
+                {
+                    Diagnostics.Log("Clean up: checking saved albums", ex);
+                    MessageBox.Show(MainWindow, "Couldn't check your saved albums on Spotify, so nothing was cleaned up. Try again in a moment.",
+                        "SpotiBee", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
             var tidy = Tidy();
             var orphans = tidy.FindOrphans(player.NowPlayingFile);
             if (orphans.Count == 0)
             {
-                MessageBox.Show(MainWindow, "Every Spotify placeholder is still in one of your playlists. Nothing to clean up.",
+                MessageBox.Show(MainWindow, "Every Spotify placeholder is still in one of your playlists or saved albums. Nothing to clean up.",
                     "SpotiBee", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
             var megabytes = orphans.Sum(o => o.Bytes) / 1024.0 / 1024.0;
             var answer = MessageBox.Show(MainWindow,
-                $"{orphans.Count} Spotify placeholder(s) ({megabytes:0.#} MB) aren't in any of your MusicBee playlists any more " +
+                $"{orphans.Count} Spotify placeholder(s) ({megabytes:0.#} MB) aren't in any of your MusicBee playlists or saved albums any more " +
                 "(auto-playlists like Recently Added don't count, since they just show what's in the library).\n\n" +
                 "Delete them? Your own music files are never touched.\n\n" +
-                "MusicBee will list the deleted placeholders as missing files until you remove missing files from the " +
-                "library in MusicBee. Plugins can't do that part.",
+                "MusicBee keeps listing deleted files in its library until you delete them there; plugins can't. So " +
+                $"SpotiBee first moves them into one album, \"{LibraryTidy.RemovedAlbum}\", which you can then delete " +
+                "in one go.\n\n" +
+                "Tip: to remove a whole album, it's easier to select it in MusicBee and press Del instead. MusicBee then " +
+                "removes the files and their library entries together.",
                 "Clean up placeholders", MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
             if (answer != DialogResult.Yes)
                 return;
+
             var deleted = tidy.Delete(orphans);
             controller.ShowStatus($"Deleted {deleted} unused placeholder(s).");
+            if (deleted == 0)
+                return;
+            MessageBox.Show(MainWindow,
+                $"Deleted {deleted} placeholder(s).\n\n" +
+                "MusicBee still lists them, so they've been grouped as one album:\n" +
+                $"\"{LibraryTidy.RemovedAlbum}\" by {LibraryTidy.RemovedAlbumArtist}.\n\n" +
+                "To remove them from MusicBee, select that album in the music explorer and press Del.",
+                "Clean up placeholders", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         /// <summary>Opens the search window, or brings the open one to the front. It isn't modal, so MusicBee stays usable.</summary>

@@ -46,6 +46,12 @@ namespace SpotiBee
         /// </summary>
         public event Action<IReadOnlyList<Playlist>> NewPlaylistsFound;
 
+        /// <summary>
+        /// Albums saved on Spotify since the user last looked, found while syncing once at least one
+        /// saved album has been imported. Not raised when they're imported automatically.
+        /// </summary>
+        public event Action<IReadOnlyList<SavedAlbum>> NewAlbumsFound;
+
         public void Start() => timer.Start();
 
         /// <summary>MusicBee reported a playlist change (PlaylistUpdated/Deleted).</summary>
@@ -85,6 +91,13 @@ namespace SpotiBee
             var outcomes = new List<SyncOutcome>();
             try
             {
+                if (controller.Store.Albums.Count > 0)
+                {
+                    // A problem here mustn't stop the playlists syncing
+                    try { await LookForNewAlbumsAsync(progress, ct); }
+                    catch (Exception ex) when (!(ex is OperationCanceledException)) { Diagnostics.Log("Looking for new saved albums", ex); }
+                }
+
                 var links = controller.Store.Playlists.ToList();
                 if (links.Count == 0)
                     return outcomes;
@@ -285,6 +298,64 @@ namespace SpotiBee
                 store.MarkPlaylistsSeen(new[] { playlist.Id });
                 store.Save();
             }
+        }
+
+        /// <summary>
+        /// Announces (or imports, if the user chose that) albums saved on Spotify since the user last
+        /// looked. Spotify lists the most recently saved first, so one short page is enough.
+        /// </summary>
+        private async Task LookForNewAlbumsAsync(IProgress<ImportProgress> progress, CancellationToken ct)
+        {
+            var store = controller.Store;
+            var page = await controller.Client.GetSavedAlbumsPageAsync(20, ct);
+            var saved = page?.Items?.Where(a => a?.Album?.Id != null).ToList() ?? new List<SavedAlbum>();
+            var since = store.AlbumsSeenUntilUtc;
+            if (since == null)
+            {
+                store.AlbumsSeenUntilUtc = DateTime.UtcNow;
+                store.Save();
+                Diagnostics.Log("New albums: only albums saved from now on count as new");
+                return;
+            }
+
+            var fresh = saved.Where(a => a.AddedUtc > since && store.GetAlbum(a.Album.Id) == null).ToList();
+            if (fresh.Count == 0)
+                return;
+            Diagnostics.Log($"New albums: found {string.Join(", ", fresh.Select(a => "\"" + a.Album.Name + "\""))}" +
+                            (controller.Settings.AutoImportNewPlaylists ? " (importing)" : " (showing a notice)"));
+            if (!controller.Settings.AutoImportNewPlaylists)
+            {
+                NewAlbumsFound?.Invoke(fresh);
+                return;
+            }
+
+            var importer = CreateImporter();
+            foreach (var album in fresh)
+            {
+                ct.ThrowIfCancellationRequested();
+                try
+                {
+                    var result = await importer.ImportAlbumAsync(album.Album, progress, ct);
+                    controller.ShowStatus($"Imported new saved album \"{album.Album.Name}\": {result.Summary}");
+                }
+                catch (Exception ex) when (!(ex is OperationCanceledException))
+                {
+                    Diagnostics.Log($"Importing new album {album.Album.Id}", ex);
+                    controller.ShowStatus($"Couldn't import new saved album \"{album.Album.Name}\". Try it from Import Saved Albums.");
+                }
+            }
+            // Imported or not, don't try these again every few minutes
+            MarkAlbumsSeen(store, fresh);
+            store.Save();
+        }
+
+        /// <summary>Moves the "new" line past these albums, so they're no longer new.</summary>
+        public static void MarkAlbumsSeen(TrackStore store, IEnumerable<SavedAlbum> albums)
+        {
+            var newest = albums.Select(a => a.AddedUtc).Where(d => d != null).DefaultIfEmpty(null).Max();
+            if (newest != null && (store.AlbumsSeenUntilUtc == null || newest > store.AlbumsSeenUntilUtc))
+                store.AlbumsSeenUntilUtc = newest;
+            store.AlbumsSeenUntilUtc ??= DateTime.UtcNow;
         }
 
         private PlaylistImporter CreateImporter()

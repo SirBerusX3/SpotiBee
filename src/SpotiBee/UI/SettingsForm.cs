@@ -22,7 +22,7 @@ namespace SpotiBee.UI
         private readonly TextBox placeholderFolder = new TextBox();
         private readonly Button browse = new Button { Text = "Browse…", AutoSize = true };
         private readonly CheckBox autoSync = new CheckBox { Text = "Keep linked playlists in sync with Spotify automatically", AutoSize = true };
-        private readonly CheckBox autoImport = new CheckBox { Text = "Import new Spotify playlists automatically", AutoSize = true };
+        private readonly CheckBox autoImport = new CheckBox { Text = "Import new Spotify playlists and saved albums automatically", AutoSize = true };
         private readonly CheckBox updateCheck = new CheckBox { Text = "Tell me when a new version of SpotiBee is out", AutoSize = true };
         private readonly ToolTip tips = new ToolTip();
         private CancellationTokenSource loginCancel;
@@ -113,9 +113,9 @@ namespace SpotiBee.UI
 
             autoImport.Checked = controller.Settings.AutoImportNewPlaylists;
             tips.SetToolTip(autoImport,
-                "Playlists you create on Spotify (or start collaborating on) are imported and linked\n" +
-                "at the next sync, instead of a notice on the panel asking first.\n" +
-                "SpotiBee only looks for new playlists once you've linked at least one.");
+                "Playlists you create on Spotify (or start collaborating on), and albums you save there,\n" +
+                "are imported at the next sync, instead of a notice on the panel asking first.\n" +
+                "SpotiBee only looks for new playlists once you've linked one, and for new albums once you've imported one.");
             layout.Controls.Add(autoImport, 0, 6);
             layout.SetColumnSpan(autoImport, 3);
 
