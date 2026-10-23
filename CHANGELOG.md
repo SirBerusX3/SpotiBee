@@ -4,6 +4,26 @@ All notable changes to SpotiBee are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may change behaviour.
 
+## [0.7.1] – 2026-10-23
+
+### Fixed
+- **Spotify tracks wouldn't play on the Spotify app on the same PC.** Some Spotify apps (seen with
+  the Windows desktop app) accept a request to play a single track but play nothing, or their own
+  last song. MusicBee then paused, saying Spotify was playing something else. SpotiBee now checks
+  that every track it starts is actually playing. If not, it asks for the track as part of its
+  album, which those apps do play, and remembers to ask that device that way first. Only the
+  first track is slower.
+- Your Spotify account is loaded when it's needed if that didn't work when MusicBee started.
+  Before, new playlists might not be announced, and the playlist (+) menu could list other
+  people's playlists.
+
+### Changed
+- When Spotify refuses a command ("Restriction violated"), the panel says which device and why:
+  the device doesn't accept remote control, or what's playing doesn't allow that action.
+- The device dropdown marks devices Spotify won't let SpotiBee control.
+- The diagnostics report lists your Spotify devices and what each accepts, and the log records
+  every request Spotify refused.
+
 ## [0.7.0] – 2026-10-19
 
 ### Added
@@ -214,6 +234,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - No third-party DLLs, only .NET Framework assemblies, so SpotiBee can't clash with other
   MusicBee plugins.
 
+[0.7.1]: #071--2026-10-23
 [0.7.0]: #070--2026-10-19
 [0.6.0]: #060--2026-10-02
 [0.5.0]: #050--2026-10-01
