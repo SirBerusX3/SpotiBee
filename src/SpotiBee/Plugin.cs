@@ -304,6 +304,7 @@ namespace MusicBeePlugin
                 new ToolStripMenuItem("Search Spotify…", null, (s, e) => ShowSearch()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Import Spotify playlists…", null, (s, e) => ShowImport()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Import saved albums…", null, (s, e) => ShowImportAlbums()) { Enabled = controller.IsConnected },
+                new ToolStripMenuItem("Songs only on Spotify…", null, (s, e) => ShowOnlyOnSpotify()),
                 new ToolStripMenuItem("Send playlists to Spotify…", null, (s, e) => ShowSendToSpotify()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Sync playlists now", null, (s, e) => SyncNow()) { Enabled = controller.IsConnected },
                 new ToolStripMenuItem("Linked playlists…", null, (s, e) => ShowLinked()) { Enabled = controller.IsConnected },
@@ -325,6 +326,7 @@ namespace MusicBeePlugin
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Sync Playlists Now", "SpotiBee: Sync Playlists Now", (s, e) => SyncNow());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Linked Playlists…", null, (s, e) => ShowLinked());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Tracks Not Found on Spotify…", null, (s, e) => ShowUnmatched());
+            mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Songs Only on Spotify…", null, (s, e) => ShowOnlyOnSpotify());
             mbApiInterface.MB_AddMenuItem("mnuTools/SpotiBee: Clean Up Unused Placeholders…", null, (s, e) => CleanUpPlaceholders());
 
             // A hotkey description makes the command assignable in Preferences > Hotkeys
@@ -459,6 +461,14 @@ namespace MusicBeePlugin
                     catch (Exception ex) { Diagnostics.Log("Saving library", ex); }
                 },
             });
+        }
+
+        private void ShowOnlyOnSpotify()
+        {
+            if (library == null)
+                return;
+            using var form = new OnlyOnSpotifyForm(controller, library);
+            form.ShowDialog(MainWindow);
         }
 
         private void ShowLinked()

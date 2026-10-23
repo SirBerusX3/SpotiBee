@@ -238,6 +238,12 @@ panel covers that, so SpotiBee's lyrics stay hidden.
 
 ## Keeping the library tidy
 
+- **Songs only on Spotify.** **Tools → SpotiBee: Songs Only on Spotify…** (or the panel header
+  menu) lists the songs in your playlists and imported albums that you only have as placeholders,
+  grouped by album, with the playlists each one is in. Filter by song, artist or album, double-click
+  a song to open it in Spotify, or **Export CSV…** for a spreadsheet: artist, album artist, album,
+  title, length, ISRC (handy for finding the exact recording to buy) and a Spotify link. Once you
+  add your own copy to MusicBee, it replaces the placeholder automatically (see below).
 - **Your own copy wins.** When your MusicBee library has a song you previously only
   had as a placeholder (same title and artist, similar length), SpotiBee swaps your file into every
   playlist that used the placeholder. The Spotify playlists don't change. It checks shortly
