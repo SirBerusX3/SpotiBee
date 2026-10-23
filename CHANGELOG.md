@@ -4,6 +4,31 @@ All notable changes to SpotiBee are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may change behaviour.
 
+## [0.8.0] – 2026-10-23
+
+### Added
+- **Import saved albums** (Tools menu or the panel header menu). Pick albums from your Spotify
+  library and they're added to MusicBee, showing in the album view like any other album. Songs you
+  own use your own files; the rest become placeholders tagged with the album, album artist, track
+  and disc numbers, year and artwork. The window has the filter box (album or artist), Select all /
+  Select none and "New on Spotify" markers, and the Import button shows how many albums and tracks
+  you've ticked. No playlists are made.
+- **New saved albums are spotted.** Once you've imported an album, a notice on the panel tells you
+  when you save another on Spotify; click it to import, or ✕ to ignore it.
+- **Songs Only on Spotify** (Tools menu or the panel header menu): the songs in your playlists and
+  imported albums that you only have as placeholders, grouped by album, with the playlists each one
+  is in. Filter, open in Spotify, or **Export CSV…** (artist, album, title, length, ISRC and Spotify
+  link) to make a shopping list.
+- **Copy Spotify link** in the right-click SpotiBee menu (your own files too), the panel's **…** menu
+  (song, album or artist), and the Search and Songs Only on Spotify windows. Links are ordinary
+  open.spotify.com addresses anyone can open.
+
+### Changed
+- **Clean Up Unused Placeholders** keeps the placeholders of imported albums that are still saved on
+  Spotify (it checks first). Albums whose placeholders it deletes now leave MusicBee's album view;
+  songs still in one of your playlists are kept.
+- The **Import new Spotify playlists automatically** setting now covers saved albums too.
+
 ## [0.7.1] – 2026-10-23
 
 ### Fixed
@@ -234,6 +259,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - No third-party DLLs, only .NET Framework assemblies, so SpotiBee can't clash with other
   MusicBee plugins.
 
+[0.8.0]: #080--2026-10-23
 [0.7.1]: #071--2026-10-23
 [0.7.0]: #070--2026-10-19
 [0.6.0]: #060--2026-10-02
