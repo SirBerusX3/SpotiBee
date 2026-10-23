@@ -90,6 +90,8 @@ namespace SpotiBee.UI
             result.Add(new ToolStripSeparator());
             result.Add(new ToolStripMenuItem(tracks.Count == 1 ? "Open in Spotify" : "Open the first song in Spotify", null,
                 (s, e) => Open(tracks[0].Uri)));
+            result.Add(CopyItem(tracks.Count == 1 ? "Copy Spotify link" : $"Copy {tracks.Count} Spotify links",
+                tracks.Select(t => t.Uri), "Spotify link"));
             Replace(items, result.ToArray());
         }
 
@@ -127,6 +129,13 @@ namespace SpotiBee.UI
             if (firstArtist != null)
                 result.Add(new ToolStripMenuItem(track.Artists.Length > 1 ? $"Open {Escape(firstArtist.Name)} in Spotify" : "Open artist in Spotify",
                     null, (s, e) => Open(firstArtist.Uri)));
+            result.Add(new ToolStripSeparator());
+            result.Add(CopyItem("Copy song link", new[] { track.Uri }, "song link"));
+            if (track.Album?.Uri != null)
+                result.Add(CopyItem("Copy album link", new[] { track.Album.Uri }, "album link"));
+            if (firstArtist != null)
+                result.Add(CopyItem(track.Artists.Length > 1 ? $"Copy {Escape(firstArtist.Name)}'s link" : "Copy artist link",
+                    new[] { firstArtist.Uri }, "artist link"));
             Replace(items, result.ToArray());
         }
 
@@ -367,6 +376,15 @@ namespace SpotiBee.UI
         }
 
         private static string Friendly(Exception ex) => ex is SpotifyApiException api ? api.FriendlyMessage : ex.Message;
+
+        private ToolStripMenuItem CopyItem(string text, IEnumerable<string> uris, string what)
+        {
+            var list = uris.ToList();
+            return new ToolStripMenuItem(text, null, (s, e) => controller.ShowStatus(SpotifyLinks.Describe(SpotifyLinks.Copy(list), what)))
+            {
+                ToolTipText = "An open.spotify.com link anyone can open, in the Spotify app or a browser",
+            };
+        }
 
         private static void Open(string uri)
         {

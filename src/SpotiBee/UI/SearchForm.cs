@@ -102,6 +102,9 @@ namespace SpotiBee.UI
             rowMenu.Items.Add(new ToolStripSeparator());
             rowMenu.Items.Add("Like on Spotify", null, async (s, e) => await RunAsync(LikeAsync));
             rowMenu.Items.Add("Open in Spotify", null, (s, e) => OpenInSpotify());
+            rowMenu.Items.Add("Copy Spotify link", null, (s, e) => status.Text = SpotifyLinks.Describe(SpotifyLinks.Copy(Selected.Select(t => t.Uri))));
+            rowMenu.Opening += (s, e) => rowMenu.Items[rowMenu.Items.Count - 1].Text =
+                Selected.Count > 1 ? $"Copy {Selected.Count} Spotify links" : "Copy Spotify link";
             results.ContextMenuStrip = rowMenu;
 
             var actionsRow = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = false, Padding = new Padding(0, 6, 0, 0) };

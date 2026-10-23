@@ -30,6 +30,7 @@ namespace SpotiBee.UI
         private readonly Button close = new Button { Text = "Close", AutoSize = true, DialogResult = DialogResult.Cancel };
         private readonly FilterBox filterBox = new FilterBox { Width = 280, Hint = "Filter by song, artist or album (Ctrl+F)", Margin = new Padding(0, 0, 0, 6) };
         private readonly ToolTip tips = new ToolTip();
+        private readonly ContextMenuStrip rowMenu = new ContextMenuStrip();
         private List<OnlyOnSpotify.Entry> entries = new List<OnlyOnSpotify.Entry>();
         private List<OnlyOnSpotify.Entry> shown = new List<OnlyOnSpotify.Entry>();
 
@@ -65,6 +66,18 @@ namespace SpotiBee.UI
             list.Resize += (s, e) => list.Columns[3].Width = Math.Max(120, list.ClientSize.Width - 280 - 190 - 60 - 4);
             list.SelectedIndexChanged += (s, e) => openInSpotify.Enabled = list.SelectedItems.Count == 1;
             list.DoubleClick += (s, e) => OpenSelected();
+            list.MultiSelect = true;
+            var openItem = rowMenu.Items.Add("Open in Spotify", null, (s, e) => OpenSelected());
+            var copyItem = rowMenu.Items.Add("Copy Spotify link", null, (s, e) => status.Text = SpotifyLinks.Describe(
+                SpotifyLinks.Copy(list.SelectedItems.Cast<ListViewItem>().Select(i => "spotify:track:" + ((OnlyOnSpotify.Entry)i.Tag).Record.SpotifyId))));
+            rowMenu.Opening += (s, e) =>
+            {
+                var n = list.SelectedItems.Count;
+                e.Cancel = n == 0;
+                openItem.Enabled = n == 1;
+                copyItem.Text = n > 1 ? $"Copy {n} Spotify links" : "Copy Spotify link";
+            };
+            list.ContextMenuStrip = rowMenu;
             filterBox.TextChanged += (s, e) => ShowEntries(filterBox.Text);
             var filterRow = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, WrapContents = false };
             filterRow.Controls.Add(filterBox);
@@ -188,7 +201,10 @@ namespace SpotiBee.UI
         protected override void Dispose(bool disposing)
         {
             if (disposing)
+            {
                 tips.Dispose();
+                rowMenu.Dispose();
+            }
             base.Dispose(disposing);
         }
     }

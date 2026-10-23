@@ -187,12 +187,15 @@ Next to the song on the panel:
   filled).
 - **+** lists the Spotify playlists you own or collaborate on, with how many songs each has.
   Ticked playlists already have the song: click one to remove it, or an unticked one to add it.
-- **…** saves the album to your library, follows the song's artists (features included), and
-  opens the album or artist in Spotify.
+- **…** saves the album to your library, follows the song's artists (features included),
+  opens the album or artist in Spotify, and copies a link to the song, album or artist.
+
+Links are ordinary `https://open.spotify.com/…` addresses, so they work for anyone: paste them
+into a chat, a forum post or a browser.
 
 The same actions are in MusicBee's right-click menu under **SpotiBee**, for any songs you
 select, your own files included. SpotiBee finds each song on Spotify first, the same way the
-playlist sync does.
+playlist sync does. **Copy Spotify link** copies a link for each selected song, one per line.
 
 If you change a synced playlist or Liked Songs this way, the MusicBee copy catches up a couple
 of seconds later. SpotiBee remembers what's in each playlist and only fetches playlists that
@@ -211,7 +214,8 @@ Search Spotify…** (also a hotkey). The window stays open while you use MusicBe
   keyword search, which Spotify pads with popular songs by similar artists. You can also type
   Spotify filters yourself, e.g. `year:1994`.
 - Select one or more results (Ctrl/Shift), then **Play now**, **Play next**, **Add to queue**,
-  **Add to playlist**, or **♥ Like**. Double-click or press Enter to play now.
+  **Add to playlist**, or **♥ Like**. Double-click or press Enter to play now. Right-click for
+  **Open in Spotify** and **Copy Spotify link**.
 - Songs you already own use your own file ("Your file" in the *In MusicBee* column). Anything
   else gets a placeholder on the spot.
 - Adding to a synced playlist reaches Spotify a few seconds later. Liked tracks appear in your
@@ -241,7 +245,7 @@ panel covers that, so SpotiBee's lyrics stay hidden.
 - **Songs only on Spotify.** **Tools → SpotiBee: Songs Only on Spotify…** (or the panel header
   menu) lists the songs in your playlists and imported albums that you only have as placeholders,
   grouped by album, with the playlists each one is in. Filter by song, artist or album, double-click
-  a song to open it in Spotify, or **Export CSV…** for a spreadsheet: artist, album artist, album,
+  a song to open it in Spotify, right-click to copy Spotify links, or **Export CSV…** for a spreadsheet: artist, album artist, album,
   title, length, ISRC (handy for finding the exact recording to buy) and a Spotify link. Once you
   add your own copy to MusicBee, it replaces the placeholder automatically (see below).
 - **Your own copy wins.** When your MusicBee library has a song you previously only
