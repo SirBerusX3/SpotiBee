@@ -13,13 +13,14 @@ alerts for new playlists, albums and SpotiBee versions, and a window for managin
 ## Roadmap
 
 **Next**
-- Easier first-time setup
-- Copying a diagnostics summary to paste into a forum post
-
-**Later**
 - Spotify's queue on the panel
 
-**Done in 0.8:** saved albums in MusicBee's album view (with alerts for newly saved ones), a list of
+**Later**
+- Playlist covers and descriptions
+
+**Done in 0.9:** guided first-time setup, clearer login errors, and a diagnostics summary to paste
+into a forum post.
+**In 0.8:** saved albums in MusicBee's album view (with alerts for newly saved ones), a list of
 songs you only have on Spotify with CSV export, copying Spotify links, and an easier Clean Up.
 **In 0.7:** alerts for new playlists, a Linked Playlists window, an update notice, and the filter box
 with Select all / Select none. See the [CHANGELOG](CHANGELOG.md) for everything.

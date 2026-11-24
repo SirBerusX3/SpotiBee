@@ -4,6 +4,25 @@ All notable changes to SpotiBee are listed here, newest first.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/). Before 1.0, minor versions may change behaviour.
 
+## [0.9.0] – 2026-11-24
+
+### Added
+- **Guided first-time setup.** Until you're connected, Settings walks you through creating your
+  Spotify app in four numbered steps: a button that opens the Spotify Developer Dashboard, **Copy**
+  for the redirect URI, and **Paste** for the Client ID. SpotiBee checks the ID looks right before
+  opening the browser, explains Spotify's own error pages while it waits for you to approve, and
+  tells you what to do next once you're connected.
+- **Copy Diagnostics Summary…** (Tools menu, or **Diagnostics summary…** in settings) shows a short
+  report and copies it, wrapped in [code] tags, ready to paste into a forum post: versions,
+  connection, playback mode, devices, library counts, settings and recent problems. It leaves out
+  your login details, account name and Client ID, and hides your Windows user folder, PC name and
+  device names.
+
+### Changed
+- Common login and connection errors are now explained in plain English: a redirect URI that
+  doesn't match, an invalid Client ID, a Spotify account that hasn't been added to the app's
+  users, and an app owner without Premium.
+
 ## [0.8.0] – 2026-10-23
 
 ### Added
@@ -259,6 +278,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - No third-party DLLs, only .NET Framework assemblies, so SpotiBee can't clash with other
   MusicBee plugins.
 
+[0.9.0]: #090--2026-11-24
 [0.8.0]: #080--2026-10-23
 [0.7.1]: #071--2026-10-23
 [0.7.0]: #070--2026-10-19
